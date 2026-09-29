@@ -1,51 +1,145 @@
-<script>
-    // 1. Configuración de Supabase
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Mapa Electoral - Iztacalco</title>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
+    #map { height: 100%; width: 100%; }
+    
+    .btn-gps {
+      position: absolute; bottom: 20px; right: 20px; z-index: 1000;
+      background: #007bff; color: white; border: none; padding: 12px 16px;
+      border-radius: 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      cursor: pointer; display: flex; align-items: center; gap: 8px;
+    }
+    
+    .modal {
+      display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.5); justify-content: center; align-items: flex-end;
+    }
+    .modal-content {
+      background: white; width: 100%; max-width: 500px; padding: 20px;
+      border-radius: 16px 16px 0 0; box-sizing: border-box; animation: slideUp 0.3s ease-out;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+    .btn-submit { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 10px; }
+    .btn-close { background: #dc3545; color: white; width: 100%; padding: 8px; border: none; border-radius: 8px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+  <button class="btn-gps" onclick="centrarGPS()">📍 Mi Ubicación</button>
+
+  <!-- Modal Captura de Casas -->
+  <div id="modalForm" class="modal">
+    <div class="modal-content">
+      <h3>Registrar Visita de Casa</h3>
+      <div class="form-group">
+        <label>Nombre del Brigadista:</label>
+        <input type="text" id="brigadista" placeholder="Tu nombre">
+      </div>
+      <div class="form-group">
+        <label>¿Es Simpatizante?</label>
+        <select id="simpatizante">
+          <option value="true">Sí (Simpatizante)</option>
+          <option value="false">No / Pendiente</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Dirección / Referencia:</label>
+        <input type="text" id="direccion" placeholder="Calle y No. exterior">
+      </div>
+      <div class="form-group">
+        <label>Observaciones:</label>
+        <input type="text" id="observaciones" placeholder="Detalles o compromisos">
+      </div>
+      <input type="hidden" id="lat">
+      <input type="hidden" id="lng">
+      
+      <button class="btn-submit" onclick="guardarRegistro()">Guardar Casa</button>
+      <button class="btn-close" onclick="cerrarModal()">Cancelar</button>
+    </div>
+  </div>
+
+  <script>
+    // 1. Configuración de Supabase (Pega tu clave abajo)
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
-    const SUPABASE_KEY = 'TU_CLAVE_SB_PUBLISHABLE_AQUI'; // PEGA AQUÍ TU CLAVE COMPLETA DE SUPABASE
+    const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; 
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // 2. Inicializar Mapa
-    const map = L.map('map').setView([19.395, -99.095], 14);
+    const map = L.map('map').setView([19.395, -99.095], 13);
 
-    // Capa base de OpenStreetMap
-    const mapaBase = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // Grupos de capas para encender/apagar
-    const capaSecciones = L.layerGroup().addTo(map);
+    // Grupos de capas
+    const capaAlcaldia = L.layerGroup().addTo(map);
+    const capaD11_Rutas = L.layerGroup().addTo(map);
+    const capaD11_Secciones = L.layerGroup();
+    const capaD15_Rutas = L.layerGroup().addTo(map);
+    const capaD15_Secciones = L.layerGroup();
     const capaCasas = L.layerGroup().addTo(map);
 
     // 3. Control de Capas (Prender / Apagar)
-    const capasSuperpuestas = {
-      "🗺️ Polígonos de Rutas y Secciones": capaSecciones,
-      "📍 Casas Registradas": capaCasas
+    const capasOverlay = {
+      "📍 Casas Registradas": capaCasas,
+      "🏙️ Límite Alcaldía Iztacalco": capaAlcaldia,
+      "🔲 D11 - Rutas": capaD11_Rutas,
+      "📄 D11 - Secciones Electorales": capaD11_Secciones,
+      "🔲 D15 - Rutas": capaD15_Rutas,
+      "📄 D15 - Secciones Electorales": capaD15_Secciones
     };
-    L.control.layers(null, capasSuperpuestas, { collapsed: false }).addTo(map);
 
-    // 4. Cargar Polígonos de Rutas y Secciones desde el GeoJSON
-    fetch('rutas_iztacalco_completo.geojson')
-      .then(res => res.json())
-      .then(data => {
-        const geojsonLayer = L.geoJSON(data, {
-          style: {
-            color: '#ff7800',
-            weight: 2,
-            opacity: 0.7,
-            fillOpacity: 0.15
-          },
-          onEachFeature: function (feature, layer) {
-            let info = `<b>Sección:</b> ${feature.properties.seccion || feature.properties.SECCION || 'N/A'}<br>`;
-            if (feature.properties.ruta) info += `<b>Ruta:</b> ${feature.properties.ruta}`;
-            layer.bindPopup(info);
-          }
-        });
-        capaSecciones.addLayer(geojsonLayer);
-      })
-      .catch(err => console.error("Error al cargar el GeoJSON:", err));
+    L.control.layers(null, capasOverlay, { collapsed: false }).addTo(map);
 
-    // 5. Captura al hacer clic en el Mapa
+    // Función auxiliar para cargar GeoJSON con estilo
+    function cargarGeoJSON(url, grupo, estilo, esSeccion = false) {
+      fetch(url)
+        .then(res => res.json())
+        .then(data => {
+          const layer = L.geoJSON(data, {
+            style: estilo,
+            onEachFeature: function (feature, l) {
+              let info = "";
+              if (feature.properties.SECCION || feature.properties.seccion) {
+                info += `<b>Sección:</b> ${feature.properties.SECCION || feature.properties.seccion}<br>`;
+              }
+              if (feature.properties.ruta || feature.properties.RUTA) {
+                info += `<b>Ruta:</b> ${feature.properties.ruta || feature.properties.RUTA}`;
+              }
+              if (info) l.bindPopup(info);
+            }
+          });
+          grupo.addLayer(layer);
+        })
+        .catch(err => console.log("Archivo no encontrado o pendiente de subir:", url));
+    }
+
+    // 4. Cargar tus archivos GeoJSON
+    cargarGeoJSON('Alcaldía Iztacalco.geojson', capaAlcaldia, { color: '#333', weight: 3, fill: false });
+    cargarGeoJSON('Distrito Local 11.-Rutas.geojson', capaD11_Rutas, { color: '#e67e22', weight: 2, fillOpacity: 0.1 });
+    cargarGeoJSON('Distrito Local 11.-Secciones electorales.geojson', capaD11_Secciones, { color: '#d35400', weight: 1, dashArray: '3', fillOpacity: 0.05 });
+    cargarGeoJSON('Distrito Local 15.-Rutas.geojson', capaD15_Rutas, { color: '#2980b9', weight: 2, fillOpacity: 0.1 });
+    cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, { color: '#16a085', weight: 1, dashArray: '3', fillOpacity: 0.05 });
+
+    // 5. Captura de Casas (clic en mapa)
     let clickMarker;
     map.on('click', function(e) {
       const lat = e.latlng.lat;
@@ -65,7 +159,7 @@
       if (clickMarker) map.removeLayer(clickMarker);
     }
 
-    // 6. Guardar Registro en Supabase
+    // 6. Guardar en Supabase
     async function guardarRegistro() {
       const brigadista = document.getElementById('brigadista').value;
       const simpatizante = document.getElementById('simpatizante').value === 'true';
@@ -94,15 +188,15 @@
       }
     }
 
-    // 7. Cargar Puntos Capturados en la Capa de Casas
+    // 7. Cargar Casas Registradas
     async function cargarCasasGuardadas() {
-      capaCasas.clearLayers(); // Limpiar capas previas para no duplicar
+      capaCasas.clearLayers();
       const { data, error } = await _supabase.from('simpatizantes').select('*');
       if (!error && data) {
         data.forEach(casa => {
-          const colorIcono = casa.es_simpatizante ? '#28a745' : '#ffc107';
+          const colorIcono = casa.es_simpatizante ? '#27ae60' : '#f39c12';
           const marcador = L.circleMarker([casa.lat, casa.lng], {
-            radius: 8,
+            radius: 7,
             fillColor: colorIcono,
             color: '#000',
             weight: 1,
@@ -116,7 +210,7 @@
     }
     cargarCasasGuardadas();
 
-    // 8. Geolocalización del Teléfono
+    // 8. GPS
     function centrarGPS() {
       map.locate({setView: true, maxZoom: 18});
     }
@@ -125,6 +219,8 @@
       L.marker(e.latlng).addTo(map).bindPopup("¡Estás aquí! Toca en la casa para registrar.").openPopup();
     });
     map.on('locationerror', function() {
-      alert("No se pudo obtener la ubicación GPS de tu dispositivo.");
+      alert("No se pudo obtener la ubicación GPS.");
     });
   </script>
+</body>
+</html>
