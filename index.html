@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Mapa de Rutas - Iztacalco</title>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
+    #map { height: 100%; width: 100%; }
+    
+    /* Panel Flotante de Controles */
+    .btn-gps {
+      position: absolute; bottom: 20px; right: 20px; z-index: 1000;
+      background: #007bff; color: white; border: none; padding: 12px 16px;
+      border-radius: 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      cursor: pointer; display: flex; align-items: center; gap: 8px;
+    }
+    
+    /* Formulario Modal */
+    .modal {
+      display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.5); justify-content: center; align-items: flex-end;
+    }
+    .modal-content {
+      background: white; width: 100%; max-width: 500px; padding: 20px;
+      border-radius: 16px 16px 0 0; box-sizing: border-box; animation: slideUp 0.3s ease-out;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+    .btn-submit { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 10px; }
+    .btn-close { background: #dc3545; color: white; width: 100%; padding: 8px; border: none; border-radius: 8px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+  <button class="btn-gps" onclick="centrarGPS()">📍 Mi Ubicación</button>
+
+  <!-- Modal Captura de Casas -->
+  <div id="modalForm" class="modal">
+    <div class="modal-content">
+      <h3>Registrar Visita de Casa</h3>
+      <div class="form-group">
+        <label>Nombre del Brigadista:</label>
+        <input type="text" id="brigadista" placeholder="Tu nombre">
+      </div>
+      <div class="form-group">
+        <label>¿Es Simpatizante?</label>
+        <select id="simpatizante">
+          <option value="true">Sí (Simpatizante)</option>
+          <option value="false">No / Pendiente</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Dirección / Referencia:</label>
+        <input type="text" id="direccion" placeholder="Calle y No. exterior">
+      </div>
+      <div class="form-group">
+        <label>Observaciones:</label>
+        <input type="text" id="observaciones" placeholder="Detalles o compromisos">
+      </div>
+      <input type="hidden" id="lat">
+      <input type="hidden" id="lng">
+      
+      <button class="btn-submit" onclick="guardarRegistro()">Guardar Casa</button>
+      <button class="btn-close" onclick="cerrarModal()">Cancelar</button>
+    </div>
+  </div>
+
+  <script>
+    // 1. Configuración de Supabase (REEMPLAZA TU KEY AQUÍ)
+    const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; 
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // 2. Inicializar Mapa en Iztacalco
+    const map = L.map('map').setView([19.395, -99.095], 14);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // 3. Cargar Polígonos de Rutas y Secciones
+    fetch('rutas_iztacalco_completo.geojson')
+      .then(res => res.json())
+      .then(data => {
+        L.geoJSON(data, {
+          style: {
+            color: '#ff7800',
+            weight: 2,
+            opacity: 0.65,
+            fillOpacity: 0.1
+          },
+          onEachFeature: function (feature, layer) {
+            let info = `<b>Sección:</b> ${feature.properties.seccion || feature.properties.SECCION || 'N/A'}<br>`;
+            if (feature.properties.ruta) info += `<b>Ruta:</b> ${feature.properties.ruta}`;
+            layer.bindPopup(info);
+          }
+        }).addTo(map);
+      });
+
+    // 4. Captura al hacer clic en el Mapa
+    let clickMarker;
+    map.on('click', function(e) {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+
+      document.getElementById('lat').value = lat;
+      document.getElementById('lng').value = lng;
+
+      if (clickMarker) map.removeLayer(clickMarker);
+      clickMarker = L.marker([lat, lng]).addTo(map);
+
+      document.getElementById('modalForm').style.display = 'flex';
+    });
+
+    function cerrarModal() {
+      document.getElementById('modalForm').style.display = 'none';
+      if (clickMarker) map.removeLayer(clickMarker);
+    }
+
+    // 5. Guardar Registro en Supabase
+    async function guardarRegistro() {
+      const brigadista = document.getElementById('brigadista').value;
+      const simpatizante = document.getElementById('simpatizante').value === 'true';
+      const direccion = document.getElementById('direccion').value;
+      const observaciones = document.getElementById('observaciones').value;
+      const lat = parseFloat(document.getElementById('lat').value);
+      const lng = parseFloat(document.getElementById('lng').value);
+
+      if (!brigadista) {
+        alert("Por favor ingresa el nombre del brigadista.");
+        return;
+      }
+
+      const { data, error } = await _supabase
+        .from('simpatizantes')
+        .insert([
+          { brigadista_nombre: brigadista, es_simpatizante: simpatizante, direccion: direccion, observaciones: observaciones, lat: lat, lng: lng }
+        ]);
+
+      if (error) {
+        alert("Error al guardar: " + error.message);
+      } else {
+        alert("¡Casa registrada con éxito!");
+        cerrarModal();
+        cargarCasasGuardadas();
+      }
+    }
+
+    // 6. Cargar Puntos Capturados en el Mapa
+    async function cargarCasasGuardadas() {
+      const { data, error } = await _supabase.from('simpatizantes').select('*');
+      if (!error && data) {
+        data.forEach(casa => {
+          const colorIcono = casa.es_simpatizante ? 'green' : 'orange';
+          L.circleMarker([casa.lat, casa.lng], {
+            radius: 7,
+            fillColor: colorIcono,
+            color: '#000',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          }).addTo(map)
+          .bindPopup(`<b>Brigadista:</b> ${casa.brigadista_nombre}<br><b>Simpatizante:</b> ${casa.es_simpatizante ? 'Sí' : 'No'}<br><b>Dirección:</b> ${casa.direccion || 'S/N'}`);
+        });
+      }
+    }
+    cargarCasasGuardadas();
+
+    // 7. Geolocalización del Teléfono
+    function centrarGPS() {
+      map.locate({setView: true, maxZoom: 18});
+    }
+    map.on('locationfound', function(e) {
+      L.circle(e.latlng, e.accuracy / 2).addTo(map);
+      L.marker(e.latlng).addTo(map).bindPopup("¡Estás aquí! Tap en la casa para registrar.").openPopup();
+    });
+    map.on('locationerror', function() {
+      alert("No se pudo obtener la ubicación GPS de tu dispositivo.");
+    });
+  </script>
+</body>
+</html>
