@@ -76,9 +76,9 @@
   </div>
 
   <script>
-    // 1. Configuración de Supabase (Pega tu clave abajo)
+    // 1. Configuración de Supabase
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; 
+    const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; // PEGA AQUÍ TU CLAVE COMPLETA DE SUPABASE
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // 2. Inicializar Mapa
@@ -91,28 +91,36 @@
 
     // Grupos de capas
     const capaAlcaldia = L.layerGroup().addTo(map);
+    const capaD11_Limite = L.layerGroup().addTo(map);
     const capaD11_Rutas = L.layerGroup().addTo(map);
     const capaD11_Secciones = L.layerGroup();
+    const capaD15_Limite = L.layerGroup().addTo(map);
     const capaD15_Rutas = L.layerGroup().addTo(map);
     const capaD15_Secciones = L.layerGroup();
     const capaCasas = L.layerGroup().addTo(map);
 
-    // 3. Control de Capas (Prender / Apagar)
+    // 3. Control de Capas (Menú interactivo desplegable)
     const capasOverlay = {
       "📍 Casas Registradas": capaCasas,
       "🏙️ Límite Alcaldía Iztacalco": capaAlcaldia,
+      "🏛️ Distrito Local 11 (Límite)": capaD11_Limite,
       "🔲 D11 - Rutas": capaD11_Rutas,
       "📄 D11 - Secciones Electorales": capaD11_Secciones,
+      "🏛️ Distrito Local 15 (Límite)": capaD15_Limite,
       "🔲 D15 - Rutas": capaD15_Rutas,
       "📄 D15 - Secciones Electorales": capaD15_Secciones
     };
 
     L.control.layers(null, capasOverlay, { collapsed: false }).addTo(map);
 
-    // Función auxiliar para cargar GeoJSON con estilo
-    function cargarGeoJSON(url, grupo, estilo, esSeccion = false) {
-      fetch(url)
-        .then(res => res.json())
+    // Función auxiliar que codifica automáticamente los nombres con espacios/acentos
+    function cargarGeoJSON(nombreArchivo, grupo, estilo) {
+      const urlCodificada = encodeURIComponent(nombreArchivo);
+      fetch(urlCodificada)
+        .then(res => {
+          if (!res.ok) throw new Error("HTTP error " + res.status);
+          return res.json();
+        })
         .then(data => {
           const layer = L.geoJSON(data, {
             style: estilo,
@@ -129,17 +137,19 @@
           });
           grupo.addLayer(layer);
         })
-        .catch(err => console.log("Archivo no encontrado o pendiente de subir:", url));
+        .catch(err => console.error("No se pudo cargar:", nombreArchivo, err));
     }
 
-    // 4. Cargar tus archivos GeoJSON
-    cargarGeoJSON('Alcaldía Iztacalco.geojson', capaAlcaldia, { color: '#333', weight: 3, fill: false });
+    // 4. Carga directa utilizando los nombres exactos de tus archivos
+    cargarGeoJSON('Alcaldía Iztacalco.geojson', capaAlcaldia, { color: '#000000', weight: 3, fill: false });
+    cargarGeoJSON('Distrito Local 11.geojson', capaD11_Limite, { color: '#d35400', weight: 3, dashArray: '5, 5', fillOpacity: 0.05 });
     cargarGeoJSON('Distrito Local 11.-Rutas.geojson', capaD11_Rutas, { color: '#e67e22', weight: 2, fillOpacity: 0.1 });
-    cargarGeoJSON('Distrito Local 11.-Secciones electorales.geojson', capaD11_Secciones, { color: '#d35400', weight: 1, dashArray: '3', fillOpacity: 0.05 });
-    cargarGeoJSON('Distrito Local 15.-Rutas.geojson', capaD15_Rutas, { color: '#2980b9', weight: 2, fillOpacity: 0.1 });
-    cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, { color: '#16a085', weight: 1, dashArray: '3', fillOpacity: 0.05 });
+    cargarGeoJSON('Distrito Local 11.-Secciones electorales.geojson', capaD11_Secciones, { color: '#8e44ad', weight: 1, dashArray: '2', fillOpacity: 0.05 });
+    cargarGeoJSON('Distrito Local 15.geojson', capaD15_Limite, { color: '#2980b9', weight: 3, dashArray: '5, 5', fillOpacity: 0.05 });
+    cargarGeoJSON('Distrito Local 15.-Rutas.geojson', capaD15_Rutas, { color: '#3498db', weight: 2, fillOpacity: 0.1 });
+    cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, { color: '#16a085', weight: 1, dashArray: '2', fillOpacity: 0.05 });
 
-    // 5. Captura de Casas (clic en mapa)
+    // 5. Captura al hacer clic en el Mapa
     let clickMarker;
     map.on('click', function(e) {
       const lat = e.latlng.lat;
@@ -159,7 +169,7 @@
       if (clickMarker) map.removeLayer(clickMarker);
     }
 
-    // 6. Guardar en Supabase
+    // 6. Guardar Registro en Supabase
     async function guardarRegistro() {
       const brigadista = document.getElementById('brigadista').value;
       const simpatizante = document.getElementById('simpatizante').value === 'true';
@@ -188,7 +198,7 @@
       }
     }
 
-    // 7. Cargar Casas Registradas
+    // 7. Cargar Puntos Capturados desde Supabase
     async function cargarCasasGuardadas() {
       capaCasas.clearLayers();
       const { data, error } = await _supabase.from('simpatizantes').select('*');
