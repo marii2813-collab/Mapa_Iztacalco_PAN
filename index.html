@@ -33,6 +33,12 @@
       border-radius: 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
       cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px;
     }
+
+    .btn-registrar-aqui {
+      background: #28a745; color: white; border: none; padding: 8px 12px;
+      border-radius: 6px; font-weight: bold; font-size: 13px; cursor: pointer;
+      margin-top: 6px; width: 100%; text-align: center; display: inline-block;
+    }
     
     /* Modales Desplazables */
     .modal {
@@ -221,10 +227,8 @@
   </div>
 
   <script>
-    // 1. Configuración de Supabase con protección try-catch
+    // Configuración de Supabase
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
-    
-    // PEGA AQUÍ TU CLAVE COMPLETA DE SUPABASE (token largo eyJhbGci...)
     const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; 
     
     let _supabase = null;
@@ -236,18 +240,20 @@
       console.warn("Supabase no configurado correctamente todavía:", e);
     }
 
-    // Variables Globales de Datos
     let registrosCargados = [];
+    let gpsMarker = null;
 
-    // 2. Inicializar Mapa
-    const map = L.map('map').setView([19.395, -99.095], 14);
+    // Inicializar Mapa
+    const map = L.map('map', {
+      doubleClickZoom: false,
+      tap: true
+    }).setView([19.395, -99.095], 14);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // Paleta de colores para rutas
     const coloresRutas = [
       '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', 
       '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', 
@@ -270,11 +276,10 @@
     const capaD15_Secciones = L.layerGroup().addTo(map);
     const capaCasas = L.layerGroup().addTo(map);
 
-    // Control de Capas
     const capasOverlay = {
       "📍 Casas Registradas": capaCasas,
-      "🏙️ Límite Alcaldía Iztacalco": capaAlcaldia,
-      "🏛️ Distrito Local 11 (Límite)": capaD11_Limite,
+      "🏙 Límite Alcaldía Iztacalco": capaAlcaldia,
+      "🏛️️ Distrito Local 11 (Límite)": capaD11_Limite,
       "🔲 D11 - Rutas": capaD11_Rutas,
       "📄 D11 - Secciones": capaD11_Secciones,
       "🏛️ Distrito Local 15 (Límite)": capaD15_Limite,
@@ -318,10 +323,6 @@
                   direction: 'center',
                   className: 'etiqueta-seccion'
                 });
-
-                l.on('click', function(e) {
-                  map.fitBounds(l.getBounds(), { padding: [20, 20], maxZoom: 17 });
-                });
               }
             }
           });
@@ -330,7 +331,6 @@
         .catch(err => console.error("Error al cargar:", nombreArchivo, err));
     }
 
-    // Cargar capas GeoJSON
     cargarGeoJSON('Alcaldía Iztacalco.geojson', capaAlcaldia, 'alcaldia');
     cargarGeoJSON('Distrito Local 11.geojson', capaD11_Limite, 'limite_d11');
     cargarGeoJSON('Distrito Local 11.-Rutas.geojson', capaD11_Rutas, 'rutas');
@@ -339,7 +339,6 @@
     cargarGeoJSON('Distrito Local 15.-Rutas.geojson', capaD15_Rutas, 'rutas');
     cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, 'secciones');
 
-    // Control visibilidad etiquetas por zoom
     map.on('zoomend', function() {
       const currentZoom = map.getZoom();
       const elementosEtiquetas = document.querySelectorAll('.etiqueta-seccion');
@@ -348,7 +347,6 @@
       });
     });
 
-    // Validaciones UI Formulario
     function toggleRazonNoRegistro() {
       const reg = document.getElementById('registro_plataforma').value;
       document.getElementById('group-razon').style.display = (reg === 'false') ? 'block' : 'none';
@@ -380,7 +378,6 @@
       }
     }
 
-    // Extracción OCR INE
     async function extraerTextoOCR() {
       if (!archivoFotoSeleccionado) {
         alert("Por favor selecciona o toma una foto primero.");
@@ -404,17 +401,23 @@
       }
     }
 
-    // Modales Eventos
     let clickMarker;
-    map.on('click', function(e) {
-      document.getElementById('lat').value = e.latlng.lat;
-      document.getElementById('lng').value = e.latlng.lng;
+    
+    // Función para abrir el modal con coordenadas específicas
+    function abrirModalConCoordenadas(lat, lng) {
+      document.getElementById('lat').value = lat;
+      document.getElementById('lng').value = lng;
 
       if (clickMarker) map.removeLayer(clickMarker);
-      clickMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+      clickMarker = L.marker([lat, lng]).addTo(map);
 
       document.getElementById('modalForm').style.display = 'flex';
       toggleRazonNoRegistro();
+    }
+
+    // Evento de toque manual en el mapa
+    map.on('click', function(e) {
+      abrirModalConCoordenadas(e.latlng.lat, e.latlng.lng);
     });
 
     function cerrarModal() {
@@ -433,7 +436,6 @@
       document.getElementById('modalTabla').style.display = 'none';
     }
 
-    // Función auxiliar para comprimir la foto en el dispositivo antes del envío
     function comprimirImagen(archivo, calidad = 0.7, maxAncho = 1200) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -465,7 +467,6 @@
       });
     }
 
-    // Guardado optimizado en Supabase con foto comprimida
     async function guardarRegistro() {
       const brigadista = document.getElementById('brigadista').value.trim();
       const telefono = document.getElementById('telefono').value.trim();
@@ -484,9 +485,7 @@
 
       if (_supabase && archivoFotoSeleccionado) {
         try {
-          // Comprime la foto a un máximo de 1200px y 70% de calidad (~200KB)
           const fotoComprimida = await comprimirImagen(archivoFotoSeleccionado);
-          
           const fileExt = 'jpg';
           const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
           
@@ -543,7 +542,6 @@
       }
     }
 
-    // Cargar Casas desde Supabase y Renderizar Mapa + Tabla
     async function cargarCasasGuardadas() {
       capaCasas.clearLayers();
       if (!_supabase) return;
@@ -583,7 +581,6 @@
     }
     cargarCasasGuardadas();
 
-    // Lógica para la Tabla y Totales en tiempo real
     function renderizarTablaYTotales() {
       const cuerpo = document.getElementById('cuerpoTabla');
       cuerpo.innerHTML = '';
@@ -614,7 +611,6 @@
       document.getElementById('kpi-ine').innerText = countIne;
     }
 
-    // Filtro de búsqueda en tiempo real
     function filtrarTabla() {
       const texto = document.getElementById('buscadorTabla').value.toLowerCase();
       const filas = document.querySelectorAll('#cuerpoTabla tr');
@@ -624,7 +620,6 @@
       });
     }
 
-    // Exportación directa a Excel/CSV desde la web
     function descargarCSV() {
       if (registrosCargados.length === 0) {
         alert("No hay registros cargados para exportar.");
@@ -660,16 +655,33 @@
       document.body.removeChild(link);
     }
 
-    // GPS
+    // Funcionalidad GPS mejorada
     function centrarGPS() {
-      map.locate({setView: true, maxZoom: 18});
+      map.locate({setView: true, maxZoom: 18, enableHighAccuracy: true});
     }
+
     map.on('locationfound', function(e) {
-      L.circle(e.latlng, e.accuracy / 2).addTo(map);
-      L.marker(e.latlng).addTo(map).bindPopup("¡Estás aquí! Toca en la casa para registrar.").openPopup();
+      if (gpsMarker) map.removeLayer(gpsMarker);
+
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+
+      const popupHtml = `
+        <div style="text-align:center;">
+          <b>📍 ¡Estás aquí!</b><br>
+          <span style="font-size:11px; color:#555;">Coordenadas precisas obtenidas</span><br><br>
+          <button class="btn-registrar-aqui" onclick="abrirModalConCoordenadas(${lat}, ${lng})">
+            ➕ Registrar en mi ubicación actual
+          </button>
+        </div>
+      `;
+
+      L.circle(e.latlng, e.accuracy / 2, { color: '#007bff', fillColor: '#007bff', fillOpacity: 0.15 }).addTo(map);
+      gpsMarker = L.marker(e.latlng).addTo(map).bindPopup(popupHtml).openPopup();
     });
+
     map.on('locationerror', function() {
-      alert("No se pudo obtener la ubicación GPS.");
+      alert("No se pudo obtener la ubicación GPS. Verifica que la localización esté activada en tu dispositivo.");
     });
   </script>
 </body>
