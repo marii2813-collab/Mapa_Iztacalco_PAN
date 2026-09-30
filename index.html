@@ -227,6 +227,31 @@
   </div>
 
   <script>
+    // ==========================================
+    // SEGURIDAD: CLAVE / NIP DE ACCESO
+    // ==========================================
+    const NIP_AUTORIZADO = "ALP_2026"; // <-- PUEDES CAMBIAR ESTA CLAVE POR LA QUE PREFIERAS
+
+    function verificarAcceso() {
+      let claveGuardada = localStorage.getItem("nip_brigada");
+
+      if (claveGuardada !== NIP_AUTORIZADO) {
+        let claveIngresada = prompt("🔒 Acceso Restringido - Ingresa la clave/NIP de la brigada:");
+
+        if (claveIngresada === NIP_AUTORIZADO) {
+          localStorage.setItem("nip_brigada", NIP_AUTORIZADO);
+          alert("¡Acceso autorizado!");
+        } else {
+          alert("❌ Clave incorrecta. No tienes permiso para utilizar esta herramienta.");
+          document.body.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:#dc3545; font-family:sans-serif;'>🔒 Acceso Denegado</h2><p style='text-align:center; color:#666;'>Contacta al coordinador para obtener el código de acceso.</p>";
+          throw new Error("Acceso denegado por NIP incorrecto.");
+        }
+      }
+    }
+
+    // Ejecutar verificación de seguridad de inmediato
+    verificarAcceso();
+
     // Configuración de Supabase
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; 
@@ -279,7 +304,7 @@
     const capasOverlay = {
       "📍 Casas Registradas": capaCasas,
       "🏙 Límite Alcaldía Iztacalco": capaAlcaldia,
-      "🏛️️ Distrito Local 11 (Límite)": capaD11_Limite,
+      "🏛 Distrito Local 11 (Límite)": capaD11_Limite,
       "🔲 D11 - Rutas": capaD11_Rutas,
       "📄 D11 - Secciones": capaD11_Secciones,
       "🏛️ Distrito Local 15 (Límite)": capaD15_Limite,
