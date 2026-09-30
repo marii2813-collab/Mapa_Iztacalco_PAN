@@ -221,10 +221,18 @@
   </div>
 
   <script>
-    // 1. Configuración de Supabase
+    // 1. Configuración de Supabase con captura de errores para que la web NO se bloquee
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; // PEGA AQUÍ TU CLAVE COMPLETA DE SUPABASE
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; 
+    
+    let _supabase = null;
+    try {
+      if (window.supabase) {
+        _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      }
+    } catch (e) {
+      console.warn("Supabase no configurado correctamente todavía:", e);
+    }
 
     // Variables Globales de Datos
     let registrosCargados = [];
@@ -320,7 +328,7 @@
         .catch(err => console.error("Error al cargar:", nombreArchivo, err));
     }
 
-    // Cargar capas
+    // Cargar capas GeoJSON
     cargarGeoJSON('Alcaldía Iztacalco.geojson', capaAlcaldia, 'alcaldia');
     cargarGeoJSON('Distrito Local 11.geojson', capaD11_Limite, 'limite_d11');
     cargarGeoJSON('Distrito Local 11.-Rutas.geojson', capaD11_Rutas, 'rutas');
@@ -440,7 +448,7 @@
 
       let fotoUrl = null;
 
-      if (archivoFotoSeleccionado) {
+      if (_supabase && archivoFotoSeleccionado) {
         const fileExt = archivoFotoSeleccionado.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
         const { data: uploadData, error: uploadError } = await _supabase.storage
@@ -465,33 +473,39 @@
       const lat = parseFloat(document.getElementById('lat').value);
       const lng = parseFloat(document.getElementById('lng').value);
 
-      const { error } = await _supabase.from('simpatizantes').insert([{
-        brigadista_nombre: brigadista,
-        nombre_persona: nombrePersona,
-        telefono: telefono || 'N/A',
-        es_simpatizante: simpatizante,
-        entrego_ine: entregoIne,
-        registro_plataforma: registroPlataforma,
-        razon_no_registro: razonNoRegistro,
-        foto_ine_url: fotoUrl,
-        direccion: direccion,
-        observaciones: observaciones,
-        lat: lat,
-        lng: lng
-      }]);
+      if (_supabase) {
+        const { error } = await _supabase.from('simpatizantes').insert([{
+          brigadista_nombre: brigadista,
+          nombre_persona: nombrePersona,
+          telefono: telefono || 'N/A',
+          es_simpatizante: simpatizante,
+          entrego_ine: entregoIne,
+          registro_plataforma: registroPlataforma,
+          razon_no_registro: razonNoRegistro,
+          foto_ine_url: fotoUrl,
+          direccion: direccion,
+          observaciones: observaciones,
+          lat: lat,
+          lng: lng
+        }]);
 
-      if (error) {
-        alert("Error al guardar registro: " + error.message);
+        if (error) {
+          alert("Error al guardar registro: " + error.message);
+        } else {
+          alert("¡Registro guardado con éxito!");
+          cerrarModal();
+          cargarCasasGuardadas();
+        }
       } else {
-        alert("¡Registro guardado con éxito!");
-        cerrarModal();
-        cargarCasasGuardadas();
+        alert("¡Atención! La conexión con Supabase no está activa. Revisa tu clave API.");
       }
     }
 
     // Cargar Casas desde Supabase y Renderizar Mapa + Tabla
     async function cargarCasasGuardadas() {
       capaCasas.clearLayers();
+      if (!_supabase) return;
+
       const { data, error } = await _supabase.from('simpatizantes').select('*').order('id', { ascending: false });
       if (!error && data) {
         registrosCargados = data;
@@ -571,7 +585,7 @@
     // Exportación directa a Excel/CSV desde la web
     function descargarCSV() {
       if (registrosCargados.length === 0) {
-        alert("No hay registros para exportar.");
+        alert("No hay registros cargados para exportar.");
         return;
       }
       let csvContent = "data:text/csv;charset=utf-8,";
