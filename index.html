@@ -90,9 +90,45 @@
     .tabla-registros th { background-color: #f1f3f5; font-weight: bold; }
     .badge-simpa { background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
     .badge-nosimpa { background: #ffc107; color: #222; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+
+    /* Modal de Autenticación por NIP */
+    #modalNip {
+      display: flex; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.85); justify-content: center; align-items: center;
+    }
+    .nip-box {
+      background: white; width: 90%; max-width: 380px; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+    }
+    .input-password-group {
+      position: relative; display: flex; align-items: center; margin-top: 15px; margin-bottom: 15px;
+    }
+    .input-password-group input {
+      width: 100%; padding: 12px 45px 12px 15px; font-size: 18px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; text-align: center; letter-spacing: 3px;
+    }
+    .btn-toggle-eye {
+      position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 20px; color: #666; padding: 5px;
+    }
+    .btn-entrar-nip {
+      background: #007bff; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer;
+    }
   </style>
 </head>
 <body>
+
+  <!-- Modal de Seguridad / NIP -->
+  <div id="modalNip">
+    <div class="nip-box">
+      <h3 style="margin-top:0; color:#333;">🔒 Acceso Restringido</h3>
+      <p style="font-size: 13px; color: #666;">Ingresa la clave/NIP autorizada de la brigada para continuar:</p>
+      
+      <div class="input-password-group">
+        <input type="password" id="inputNip" placeholder="••••" maxlength="10" onkeypress="if(event.key === 'Enter') validarNip()">
+        <button type="button" class="btn-toggle-eye" id="btnOjo" onclick="togglePasswordVisibilidad()">👁️</button>
+      </div>
+
+      <button class="btn-entrar-nip" onclick="validarNip()">Ingresar</button>
+    </div>
+  </div>
 
   <div id="map"></div>
   <button class="btn-gps" onclick="centrarGPS()">📍 Mi Ubicación</button>
@@ -232,25 +268,39 @@
     // ==========================================
     const NIP_AUTORIZADO = "ALP_2026"; // <-- PUEDES CAMBIAR ESTA CLAVE POR LA QUE PREFIERAS
 
-    function verificarAcceso() {
+    function verificarAccesoAutomatico() {
       let claveGuardada = localStorage.getItem("nip_brigada");
-
-      if (claveGuardada !== NIP_AUTORIZADO) {
-        let claveIngresada = prompt("🔒 Acceso Restringido - Ingresa la clave/NIP de la brigada:");
-
-        if (claveIngresada === NIP_AUTORIZADO) {
-          localStorage.setItem("nip_brigada", NIP_AUTORIZADO);
-          alert("¡Acceso autorizado!");
-        } else {
-          alert("❌ Clave incorrecta. No tienes permiso para utilizar esta herramienta.");
-          document.body.innerHTML = "<h2 style='text-align:center; margin-top:50px; color:#dc3545; font-family:sans-serif;'>🔒 Acceso Denegado</h2><p style='text-align:center; color:#666;'>Contacta al coordinador para obtener el código de acceso.</p>";
-          throw new Error("Acceso denegado por NIP incorrecto.");
-        }
+      if (claveGuardada === NIP_AUTORIZADO) {
+        document.getElementById('modalNip').style.display = 'none';
       }
     }
 
-    // Ejecutar verificación de seguridad de inmediato
-    verificarAcceso();
+    function togglePasswordVisibilidad() {
+      const input = document.getElementById('inputNip');
+      const btnOjo = document.getElementById('btnOjo');
+      if (input.type === 'password') {
+        input.type = 'text';
+        btnOjo.innerText = '🙈';
+      } else {
+        input.type = 'password';
+        btnOjo.innerText = '👁️';
+      }
+    }
+
+    function validarNip() {
+      const inputIngresado = document.getElementById('inputNip').value.trim();
+      if (inputIngresado === NIP_AUTORIZADO) {
+        localStorage.setItem("nip_brigada", NIP_AUTORIZADO);
+        document.getElementById('modalNip').style.display = 'none';
+      } else {
+        alert("❌ Clave incorrecta. Intenta de nuevo.");
+        document.getElementById('inputNip').value = '';
+        document.getElementById('inputNip').focus();
+      }
+    }
+
+    // Ejecutar al cargar la página
+    verificarAccesoAutomatico();
 
     // Configuración de Supabase
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
@@ -428,7 +478,6 @@
 
     let clickMarker;
     
-    // Función para abrir el modal con coordenadas específicas
     function abrirModalConCoordenadas(lat, lng) {
       document.getElementById('lat').value = lat;
       document.getElementById('lng').value = lng;
@@ -440,7 +489,6 @@
       toggleRazonNoRegistro();
     }
 
-    // Evento de toque manual en el mapa
     map.on('click', function(e) {
       abrirModalConCoordenadas(e.latlng.lat, e.latlng.lng);
     });
