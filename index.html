@@ -221,8 +221,10 @@
   </div>
 
   <script>
-    // 1. Configuración de Supabase con captura de errores para que la web NO se bloquee
+    // 1. Configuración de Supabase con protección try-catch
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
+    
+    // PEGA AQUÍ TU CLAVE COMPLETA DE SUPABASE (token largo eyJhbGci...)
     const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; 
     
     let _supabase = null;
@@ -431,7 +433,39 @@
       document.getElementById('modalTabla').style.display = 'none';
     }
 
-    // Guardado en Supabase
+    // Función auxiliar para comprimir la foto en el dispositivo antes del envío
+    function comprimirImagen(archivo, calidad = 0.7, maxAncho = 1200) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(archivo);
+        reader.onload = function(event) {
+          const img = new Image();
+          img.src = event.target.result;
+          img.onload = function() {
+            const canvas = document.createElement('canvas');
+            let ancho = img.width;
+            let alto = img.height;
+
+            if (ancho > maxAncho) {
+              alto = Math.round((alto * maxAncho) / ancho);
+              ancho = maxAncho;
+            }
+
+            canvas.width = ancho;
+            canvas.height = alto;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, ancho, alto);
+
+            canvas.toBlob((blob) => {
+              resolve(new File([blob], archivo.name, { type: 'image/jpeg' }));
+            }, 'image/jpeg', calidad);
+          };
+        };
+        reader.onerror = error => reject(error);
+      });
+    }
+
+    // Guardado optimizado en Supabase con foto comprimida
     async function guardarRegistro() {
       const brigadista = document.getElementById('brigadista').value.trim();
       const telefono = document.getElementById('telefono').value.trim();
@@ -449,17 +483,25 @@
       let fotoUrl = null;
 
       if (_supabase && archivoFotoSeleccionado) {
-        const fileExt = archivoFotoSeleccionado.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await _supabase.storage
-          .from('fotos-ine')
-          .upload(fileName, archivoFotoSeleccionado);
+        try {
+          // Comprime la foto a un máximo de 1200px y 70% de calidad (~200KB)
+          const fotoComprimida = await comprimirImagen(archivoFotoSeleccionado);
+          
+          const fileExt = 'jpg';
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+          
+          const { data: uploadData, error: uploadError } = await _supabase.storage
+            .from('fotos-ine')
+            .upload(fileName, fotoComprimida);
 
-        if (uploadError) {
-          console.error("Error al subir foto:", uploadError);
-        } else {
-          const { data: publicUrlData } = _supabase.storage.from('fotos-ine').getPublicUrl(fileName);
-          fotoUrl = publicUrlData.publicUrl;
+          if (uploadError) {
+            console.error("Error al subir foto:", uploadError);
+          } else {
+            const { data: publicUrlData } = _supabase.storage.from('fotos-ine').getPublicUrl(fileName);
+            fotoUrl = publicUrlData.publicUrl;
+          }
+        } catch (e) {
+          console.error("Error al procesar la imagen:", e);
         }
       }
 
