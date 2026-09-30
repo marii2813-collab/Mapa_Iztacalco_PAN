@@ -19,20 +19,28 @@
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background: #f8f9fa; }
     #map { height: 100vh; width: 100%; }
     
+    /* Botones flotantes del mapa */
     .btn-gps {
       position: absolute; bottom: 20px; right: 20px; z-index: 1000;
       background: #007bff; color: white; border: none; padding: 12px 18px;
       border-radius: 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
       cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px;
     }
+
+    .btn-tabla-flotante {
+      position: absolute; bottom: 20px; left: 20px; z-index: 1000;
+      background: #343a40; color: white; border: none; padding: 12px 18px;
+      border-radius: 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px;
+    }
     
-    /* Formulario Modal Desplazable */
+    /* Modales Desplazables */
     .modal {
       display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
       background-color: rgba(0,0,0,0.6); justify-content: center; align-items: flex-end;
     }
     .modal-content {
-      background: white; width: 100%; max-width: 500px; max-height: 85vh; overflow-y: auto;
+      background: white; width: 100%; max-width: 750px; max-height: 88vh; overflow-y: auto;
       padding: 20px; border-radius: 16px 16px 0 0; box-sizing: border-box; animation: slideUp 0.25s ease-out;
     }
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -48,27 +56,41 @@
     .btn-submit { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 10px; cursor: pointer; }
     .btn-close { background: #6c757d; color: white; width: 100%; padding: 10px; border: none; border-radius: 8px; margin-top: 8px; font-weight: bold; cursor: pointer; }
     .btn-ocr { background: #17a2b8; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; margin-top: 4px; cursor: pointer; }
-    
+    .btn-export { background: #17a2b8; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-bottom: 12px; }
+
     #preview-container { display: none; margin-top: 8px; text-align: center; }
     #preview-img { max-width: 100%; max-height: 150px; border-radius: 8px; border: 1px solid #ddd; }
 
-    /* Estilo compacto y sutil para las etiquetas de Secciones Electorales */
+    /* Estilo compacto para etiquetas de Secciones */
     .etiqueta-seccion {
       background: rgba(255, 255, 255, 0.75) !important;
       border: 1px solid rgba(0, 0, 0, 0.4) !important;
       border-radius: 3px !important;
       font-weight: 600 !important;
-      font-size: 9px !important; /* Tamaño reducido para no saturar la vista */
+      font-size: 9px !important;
       color: #222 !important;
       padding: 0px 3px !important;
       box-shadow: none !important;
     }
+
+    /* Estilos del Dashboard y Tabla */
+    .kpi-container { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+    .kpi-card { flex: 1; min-width: 110px; background: #eef2f7; padding: 12px; border-radius: 8px; text-align: center; }
+    .kpi-card h4 { margin: 0; font-size: 11px; color: #555; text-transform: uppercase; }
+    .kpi-card p { margin: 4px 0 0 0; font-size: 20px; font-weight: bold; color: #007bff; }
+
+    .tabla-registros { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+    .tabla-registros th, .tabla-registros td { border: 1px solid #dee2e6; padding: 8px; text-align: left; }
+    .tabla-registros th { background-color: #f1f3f5; font-weight: bold; }
+    .badge-simpa { background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+    .badge-nosimpa { background: #ffc107; color: #222; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
   </style>
 </head>
 <body>
 
   <div id="map"></div>
   <button class="btn-gps" onclick="centrarGPS()">📍 Mi Ubicación</button>
+  <button class="btn-tabla-flotante" onclick="abrirModalTabla()">📊 Ver Registros</button>
 
   <!-- Modal Captura Completa -->
   <div id="modalForm" class="modal">
@@ -147,11 +169,65 @@
     </div>
   </div>
 
+  <!-- Modal Tabla y Resumen de Registros -->
+  <div id="modalTabla" class="modal">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="margin:0;">📊 Resumen de Capturas en Campo</h3>
+        <button class="btn-export" onclick="descargarCSV()">📥 Exportar CSV</button>
+      </div>
+
+      <!-- Tarjetas de Totales -->
+      <div class="kpi-container">
+        <div class="kpi-card">
+          <h4>Total Visitas</h4>
+          <p id="kpi-total">0</p>
+        </div>
+        <div class="kpi-card">
+          <h4>Simpatizantes</h4>
+          <p id="kpi-simpatizantes" style="color:#28a745;">0</p>
+        </div>
+        <div class="kpi-card">
+          <h4>INE Entregadas</h4>
+          <p id="kpi-ine" style="color:#17a2b8;">0</p>
+        </div>
+      </div>
+
+      <!-- Buscador -->
+      <input type="text" id="buscadorTabla" placeholder="🔍 Buscar por brigadista, ciudadano o dirección..." onkeyup="filtrarTabla()" style="width:100%; padding:8px; margin-bottom:10px; border:1px solid #ccc; border-radius:6px;">
+
+      <!-- Tabla de Datos -->
+      <div style="overflow-x:auto;">
+        <table class="tabla-registros" id="tablaDatos">
+          <thead>
+            <tr>
+              <th>Brigadista</th>
+              <th>Contacto</th>
+              <th>Teléfono</th>
+              <th>Estatus</th>
+              <th>INE</th>
+              <th>Plataforma</th>
+              <th>Dirección</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpoTabla">
+            <!-- Registros dinámicos -->
+          </tbody>
+        </table>
+      </div>
+
+      <button class="btn-close" onclick="cerrarModalTabla()">Cerrar</button>
+    </div>
+  </div>
+
   <script>
     // 1. Configuración de Supabase
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; // PEGA AQUÍ TU CLAVE COMPLETA DE SUPABASE
+    const SUPABASE_KEY = 'TU_CLAVE_SB_PUBLISHABLE_AQUI'; // PEGA AQUÍ TU CLAVE COMPLETA DE SUPABASE
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Variables Globales de Datos
+    let registrosCargados = [];
 
     // 2. Inicializar Mapa
     const map = L.map('map').setView([19.395, -99.095], 14);
@@ -226,7 +302,6 @@
               if (ruta) info += `<b>Ruta:</b> ${ruta}`;
               if (info) l.bindPopup(info);
 
-              // ETIQUETA COMPACTA DE SECCIÓN
               if (tipoCapa === 'secciones' && seccion) {
                 l.bindTooltip(`${seccion}`, {
                   permanent: true,
@@ -234,7 +309,6 @@
                   className: 'etiqueta-seccion'
                 });
 
-                // CENTRADO Y ZOOM AUTOMÁTICO AL HACER CLIC EN LA SECCIÓN
                 l.on('click', function(e) {
                   map.fitBounds(l.getBounds(), { padding: [20, 20], maxZoom: 17 });
                 });
@@ -255,22 +329,16 @@
     cargarGeoJSON('Distrito Local 15.-Rutas.geojson', capaD15_Rutas, 'rutas');
     cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, 'secciones');
 
-    // Control de visibilidad de etiquetas según el nivel de Zoom
+    // Control visibilidad etiquetas por zoom
     map.on('zoomend', function() {
       const currentZoom = map.getZoom();
       const elementosEtiquetas = document.querySelectorAll('.etiqueta-seccion');
-      
-      // Si el zoom es lejano (menor a 14), oculta levemente las etiquetas para evitar satura
       elementosEtiquetas.forEach(el => {
-        if (currentZoom < 14) {
-          el.style.display = 'none';
-        } else {
-          el.style.display = 'block';
-        }
+        el.style.display = (currentZoom < 14) ? 'none' : 'block';
       });
     });
 
-    // Validaciones UI
+    // Validaciones UI Formulario
     function toggleRazonNoRegistro() {
       const reg = document.getElementById('registro_plataforma').value;
       document.getElementById('group-razon').style.display = (reg === 'false') ? 'block' : 'none';
@@ -302,7 +370,7 @@
       }
     }
 
-    // Extracción OCR de INE
+    // Extracción OCR INE
     async function extraerTextoOCR() {
       if (!archivoFotoSeleccionado) {
         alert("Por favor selecciona o toma una foto primero.");
@@ -326,7 +394,7 @@
       }
     }
 
-    // Modal Interaction
+    // Modales Eventos
     let clickMarker;
     map.on('click', function(e) {
       document.getElementById('lat').value = e.latlng.lat;
@@ -346,7 +414,16 @@
       document.getElementById('preview-container').style.display = 'none';
     }
 
-    // Guardado completo en Supabase
+    function abrirModalTabla() {
+      document.getElementById('modalTabla').style.display = 'flex';
+      renderizarTablaYTotales();
+    }
+
+    function cerrarModalTabla() {
+      document.getElementById('modalTabla').style.display = 'none';
+    }
+
+    // Guardado en Supabase
     async function guardarRegistro() {
       const brigadista = document.getElementById('brigadista').value.trim();
       const telefono = document.getElementById('telefono').value.trim();
@@ -412,11 +489,12 @@
       }
     }
 
-    // Cargar Casas y mostrar info extendida en Popups
+    // Cargar Casas desde Supabase y Renderizar Mapa + Tabla
     async function cargarCasasGuardadas() {
       capaCasas.clearLayers();
-      const { data, error } = await _supabase.from('simpatizantes').select('*');
+      const { data, error } = await _supabase.from('simpatizantes').select('*').order('id', { ascending: false });
       if (!error && data) {
+        registrosCargados = data;
         data.forEach(casa => {
           const colorIcono = casa.es_simpatizante ? '#27ae60' : '#f39c12';
           
@@ -448,6 +526,83 @@
       }
     }
     cargarCasasGuardadas();
+
+    // Lógica para la Tabla y Totales en tiempo real
+    function renderizarTablaYTotales() {
+      const cuerpo = document.getElementById('cuerpoTabla');
+      cuerpo.innerHTML = '';
+
+      let countTotal = registrosCargados.length;
+      let countSimpa = 0;
+      let countIne = 0;
+
+      registrosCargados.forEach(item => {
+        if (item.es_simpatizante) countSimpa++;
+        if (item.entrego_ine) countIne++;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${item.brigadista_nombre}</td>
+          <td>${item.nombre_persona || 'N/A'}</td>
+          <td>${item.telefono || 'N/A'}</td>
+          <td><span class="${item.es_simpatizante ? 'badge-simpa' : 'badge-nosimpa'}">${item.es_simpatizante ? 'Sí' : 'No'}</span></td>
+          <td>${item.entrego_ine ? 'Sí' : 'No'}</td>
+          <td>${item.registro_plataforma ? 'Sí' : 'No'}</td>
+          <td>${item.direccion || 'S/N'}</td>
+        `;
+        cuerpo.appendChild(tr);
+      });
+
+      document.getElementById('kpi-total').innerText = countTotal;
+      document.getElementById('kpi-simpatizantes').innerText = countSimpa;
+      document.getElementById('kpi-ine').innerText = countIne;
+    }
+
+    // Filtro de búsqueda en tiempo real
+    function filtrarTabla() {
+      const texto = document.getElementById('buscadorTabla').value.toLowerCase();
+      const filas = document.querySelectorAll('#cuerpoTabla tr');
+      filas.forEach(fila => {
+        const contenido = fila.innerText.toLowerCase();
+        fila.style.display = contenido.includes(texto) ? '' : 'none';
+      });
+    }
+
+    // Exportación directa a Excel/CSV desde la web
+    function descargarCSV() {
+      if (registrosCargados.length === 0) {
+        alert("No hay registros para exportar.");
+        return;
+      }
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "ID,Brigadista,Nombre Ciudadano,Telefono,Es Simpatizante,Entrego INE,Registro Plataforma,Razon No Registro,Direccion,Observaciones,Latitud,Longitud\n";
+
+      registrosCargados.forEach(row => {
+        const fila = [
+          row.id,
+          `"${row.brigadista_nombre || ''}"`,
+          `"${row.nombre_persona || ''}"`,
+          `"${row.telefono || ''}"`,
+          row.es_simpatizante ? "Si" : "No",
+          row.entrego_ine ? "Si" : "No",
+          row.registro_plataforma ? "Si" : "No",
+          `"${row.razon_no_registro || ''}"`,
+          `"${row.direccion || ''}"`,
+          `"${(row.observaciones || '').replace(/\n/g, ' ')}"`,
+          row.lat,
+          row.lng
+        ].join(",");
+        csvContent += fila + "\n";
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `Registros_Iztacalco_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
 
     // GPS
     function centrarGPS() {
