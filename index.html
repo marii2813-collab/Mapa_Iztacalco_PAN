@@ -12,35 +12,37 @@
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- Tesseract OCR para lectura de INE desde el navegador -->
+  <!-- Tesseract OCR -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background: #f8f9fa; }
     #map { height: 100vh; width: 100%; }
     
-    /* Botones flotantes del mapa */
-    .btn-gps {
-      position: absolute; bottom: 20px; right: 20px; z-index: 1000;
-      background: #007bff; color: white; border: none; padding: 12px 18px;
-      border-radius: 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px;
+    /* Panel de Control Flotante Inferior */
+    .panel-flotante {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      z-index: 1000; display: flex; gap: 8px; background: rgba(255,255,255,0.95);
+      padding: 8px 12px; border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      max-width: 95%; width: max-content; overflow-x: auto;
     }
 
-    .btn-tabla-flotante {
-      position: absolute; bottom: 20px; left: 20px; z-index: 1000;
-      background: #343a40; color: white; border: none; padding: 12px 18px;
-      border-radius: 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px;
-    }
-
-    .btn-registrar-aqui {
-      background: #28a745; color: white; border: none; padding: 8px 12px;
-      border-radius: 6px; font-weight: bold; font-size: 13px; cursor: pointer;
-      margin-top: 6px; width: 100%; text-align: center; display: inline-block;
+    .btn-action {
+      border: none; padding: 10px 14px; border-radius: 20px; font-weight: bold;
+      font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;
     }
     
-    /* Modales Desplazables */
+    .btn-gps { background: #007bff; color: white; }
+    .btn-registro-gps { background: #28a745; color: white; display: none; } /* Oculto hasta tener GPS */
+    .btn-tabla { background: #343a40; color: white; }
+
+    .btn-registrar-popup {
+      background: #28a745; color: white; border: none; padding: 8px 12px;
+      border-radius: 6px; font-weight: bold; font-size: 13px; cursor: pointer;
+      margin-top: 6px; width: 100%; text-align: center; display: block;
+    }
+    
+    /* Modales */
     .modal {
       display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
       background-color: rgba(0,0,0,0.6); justify-content: center; align-items: flex-end;
@@ -56,18 +58,14 @@
     .form-group input, .form-group select, .form-group textarea {
       width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 14px;
     }
-    .form-group input:focus { border-color: #007bff; outline: none; }
-    .error-msg { color: #dc3545; font-size: 12px; margin-top: 3px; display: none; }
 
     .btn-submit { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 10px; cursor: pointer; }
     .btn-close { background: #6c757d; color: white; width: 100%; padding: 10px; border: none; border-radius: 8px; margin-top: 8px; font-weight: bold; cursor: pointer; }
     .btn-ocr { background: #17a2b8; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; margin-top: 4px; cursor: pointer; }
-    .btn-export { background: #17a2b8; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-bottom: 12px; }
 
     #preview-container { display: none; margin-top: 8px; text-align: center; }
     #preview-img { max-width: 100%; max-height: 150px; border-radius: 8px; border: 1px solid #ddd; }
 
-    /* Estilo compacto para etiquetas de Secciones */
     .etiqueta-seccion {
       background: rgba(255, 255, 255, 0.75) !important;
       border: 1px solid rgba(0, 0, 0, 0.4) !important;
@@ -76,27 +74,19 @@
       font-size: 9px !important;
       color: #222 !important;
       padding: 0px 3px !important;
-      box-shadow: none !important;
     }
-
-    /* Estilos del Dashboard y Tabla */
-    .kpi-container { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-    .kpi-card { flex: 1; min-width: 110px; background: #eef2f7; padding: 12px; border-radius: 8px; text-align: center; }
-    .kpi-card h4 { margin: 0; font-size: 11px; color: #555; text-transform: uppercase; }
-    .kpi-card p { margin: 4px 0 0 0; font-size: 20px; font-weight: bold; color: #007bff; }
-
-    .tabla-registros { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
-    .tabla-registros th, .tabla-registros td { border: 1px solid #dee2e6; padding: 8px; text-align: left; }
-    .tabla-registros th { background-color: #f1f3f5; font-weight: bold; }
-    .badge-simpa { background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
-    .badge-nosimpa { background: #ffc107; color: #222; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
   </style>
 </head>
 <body>
 
   <div id="map"></div>
-  <button class="btn-gps" onclick="centrarGPS()">📍 Mi Ubicación</button>
-  <button class="btn-tabla-flotante" onclick="abrirModalTabla()">📊 Ver Registros</button>
+
+  <!-- Barra Flotante Inferior -->
+  <div class="panel-flotante">
+    <button class="btn-action btn-gps" onclick="centrarGPS()">📍 Mi Ubicación</button>
+    <button id="btnRegistroDirectoGPS" class="btn-action btn-registro-gps" onclick="registrarEnMiUbicacionActual()">🏠 Registrar en mi ubicación actual</button>
+    <button class="btn-action btn-tabla" onclick="abrirModalTabla()">📊 Ver Registros</button>
+  </div>
 
   <!-- Modal Captura Completa -->
   <div id="modalForm" class="modal">
@@ -110,13 +100,12 @@
 
       <div class="form-group">
         <label>Nombre del Ciudadano / Contacto</label>
-        <input type="text" id="nombre_persona" placeholder="Nombre completo (o 'No proporcionado')">
+        <input type="text" id="nombre_persona" placeholder="Nombre completo">
       </div>
 
       <div class="form-group">
         <label>Teléfono (10 dígitos)</label>
-        <input type="tel" id="telefono" maxlength="10" placeholder="Ej: 5512345678" oninput="validarTelefono()">
-        <span id="tel-error" class="error-msg">El teléfono debe contener exactamente 10 dígitos numéricos.</span>
+        <input type="tel" id="telefono" maxlength="10" placeholder="Ej: 5512345678">
       </div>
 
       <div class="form-group">
@@ -137,15 +126,10 @@
 
       <div class="form-group">
         <label>¿Registro en Plataforma?</label>
-        <select id="registro_plataforma" onchange="toggleRazonNoRegistro()">
+        <select id="registro_plataforma">
           <option value="true">Sí</option>
           <option value="false">No</option>
         </select>
-      </div>
-
-      <div class="form-group" id="group-razon" style="display: none;">
-        <label>¿Por qué no se registró en plataforma?</label>
-        <input type="text" id="razon_no_registro" placeholder="Ej: No tiene smartphone, desconfianza, etc.">
       </div>
 
       <div class="form-group">
@@ -164,7 +148,7 @@
 
       <div class="form-group">
         <label>Observaciones</label>
-        <textarea id="observaciones" rows="2" placeholder="Notas relevantes de la conversación"></textarea>
+        <textarea id="observaciones" rows="2" placeholder="Notas de la visita"></textarea>
       </div>
 
       <input type="hidden" id="lat">
@@ -175,235 +159,66 @@
     </div>
   </div>
 
-  <!-- Modal Tabla y Resumen de Registros -->
-  <div id="modalTabla" class="modal">
-    <div class="modal-content">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <h3 style="margin:0;">📊 Resumen de Capturas en Campo</h3>
-        <button class="btn-export" onclick="descargarCSV()">📥 Exportar CSV</button>
-      </div>
-
-      <!-- Tarjetas de Totales -->
-      <div class="kpi-container">
-        <div class="kpi-card">
-          <h4>Total Visitas</h4>
-          <p id="kpi-total">0</p>
-        </div>
-        <div class="kpi-card">
-          <h4>Simpatizantes</h4>
-          <p id="kpi-simpatizantes" style="color:#28a745;">0</p>
-        </div>
-        <div class="kpi-card">
-          <h4>INE Entregadas</h4>
-          <p id="kpi-ine" style="color:#17a2b8;">0</p>
-        </div>
-      </div>
-
-      <!-- Buscador -->
-      <input type="text" id="buscadorTabla" placeholder="🔍 Buscar por brigadista, ciudadano o dirección..." onkeyup="filtrarTabla()" style="width:100%; padding:8px; margin-bottom:10px; border:1px solid #ccc; border-radius:6px;">
-
-      <!-- Tabla de Datos -->
-      <div style="overflow-x:auto;">
-        <table class="tabla-registros" id="tablaDatos">
-          <thead>
-            <tr>
-              <th>Brigadista</th>
-              <th>Contacto</th>
-              <th>Teléfono</th>
-              <th>Estatus</th>
-              <th>INE</th>
-              <th>Plataforma</th>
-              <th>Dirección</th>
-            </tr>
-          </thead>
-          <tbody id="cuerpoTabla">
-            <!-- Registros dinámicos -->
-          </tbody>
-        </table>
-      </div>
-
-      <button class="btn-close" onclick="cerrarModalTabla()">Cerrar</button>
-    </div>
-  </div>
-
   <script>
-    // Configuración de Supabase
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; 
     
     let _supabase = null;
     try {
-      if (window.supabase) {
-        _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      }
-    } catch (e) {
-      console.warn("Supabase no configurado correctamente todavía:", e);
-    }
+      if (window.supabase) _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } catch (e) { console.warn(e); }
 
-    let registrosCargados = [];
     let gpsMarker = null;
+    let gpsLat = null;
+    let gpsLng = null;
+    let clickMarker = null;
 
     // Inicializar Mapa
-    const map = L.map('map', {
-      doubleClickZoom: false,
-      tap: true
-    }).setView([19.395, -99.095], 14);
+    const map = L.map('map').setView([19.395, -99.095], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap'
-    }).addTo(map);
-
-    const coloresRutas = [
-      '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', 
-      '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', 
-      '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000'
-    ];
-
-    function obtenerColorRuta(numRuta) {
-      if (!numRuta) return '#3388ff';
-      const id = parseInt(numRuta.toString().replace(/\D/g, '')) || 0;
-      return coloresRutas[id % coloresRutas.length];
+    // Centrar y Obtener Ubicación
+    function centrarGPS() {
+      alert("Obteniendo tu posición GPS... Por favor permite el acceso a tu ubicación.");
+      map.locate({ setView: true, maxZoom: 18, enableHighAccuracy: true });
     }
 
-    // Grupos de capas
-    const capaAlcaldia = L.layerGroup().addTo(map);
-    const capaD11_Limite = L.layerGroup().addTo(map);
-    const capaD11_Rutas = L.layerGroup().addTo(map);
-    const capaD11_Secciones = L.layerGroup().addTo(map);
-    const capaD15_Limite = L.layerGroup().addTo(map);
-    const capaD15_Rutas = L.layerGroup().addTo(map);
-    const capaD15_Secciones = L.layerGroup().addTo(map);
-    const capaCasas = L.layerGroup().addTo(map);
+    // Evento de ubicación encontrada
+    map.on('locationfound', function(e) {
+      gpsLat = e.latlng.lat;
+      gpsLng = e.latlng.lng;
 
-    const capasOverlay = {
-      "📍 Casas Registradas": capaCasas,
-      "🏙 Límite Alcaldía Iztacalco": capaAlcaldia,
-      "🏛️️ Distrito Local 11 (Límite)": capaD11_Limite,
-      "🔲 D11 - Rutas": capaD11_Rutas,
-      "📄 D11 - Secciones": capaD11_Secciones,
-      "🏛️ Distrito Local 15 (Límite)": capaD15_Limite,
-      "🔲 D15 - Rutas": capaD15_Rutas,
-      "📄 D15 - Secciones": capaD15_Secciones
-    };
-    L.control.layers(null, capasOverlay, { collapsed: false }).addTo(map);
+      if (gpsMarker) map.removeLayer(gpsMarker);
 
-    function cargarGeoJSON(nombreArchivo, grupo, tipoCapa) {
-      const urlCodificada = encodeURIComponent(nombreArchivo);
-      fetch(urlCodificada)
-        .then(res => res.json())
-        .then(data => {
-          const layer = L.geoJSON(data, {
-            style: function(feature) {
-              if (tipoCapa === 'alcaldia') {
-                return { color: '#000000', weight: 3.5, fill: false, opacity: 0.9 };
-              } else if (tipoCapa === 'limite_d11') {
-                return { color: '#d35400', weight: 3.5, dashArray: '6, 6', fillOpacity: 0.03 };
-              } else if (tipoCapa === 'limite_d15') {
-                return { color: '#2980b9', weight: 3.5, dashArray: '6, 6', fillOpacity: 0.03 };
-              } else if (tipoCapa === 'rutas') {
-                const colorRuta = obtenerColorRuta(feature.properties.ruta || feature.properties.RUTA);
-                return { color: colorRuta, weight: 3, opacity: 0.85, fillOpacity: 0.15 };
-              } else if (tipoCapa === 'secciones') {
-                return { color: '#444444', weight: 1.2, dashArray: '3', opacity: 0.7, fillOpacity: 0.05 };
-              }
-            },
-            onEachFeature: function (feature, l) {
-              const seccion = feature.properties.SECCION || feature.properties.seccion;
-              const ruta = feature.properties.ruta || feature.properties.RUTA;
+      // Mostrar el botón verde en la barra inferior
+      document.getElementById('btnRegistroDirectoGPS').style.display = 'flex';
 
-              let info = "";
-              if (seccion) info += `<b>Sección:</b> ${seccion}<br>`;
-              if (ruta) info += `<b>Ruta:</b> ${ruta}`;
-              if (info) l.bindPopup(info);
+      const contenidoPopup = `
+        <div style="text-align:center; padding: 4px;">
+          <b>📍 ¡Estás aquí!</b><br>
+          <span style="font-size:11px; color:#666;">Coordenadas fijadas con precisión</span><br>
+          <button class="btn-registrar-popup" onclick="abrirModalConCoordenadas(${gpsLat}, ${gpsLng})">
+            ➕ Registrar en mi ubicación
+          </button>
+        </div>
+      `;
 
-              if (tipoCapa === 'secciones' && seccion) {
-                l.bindTooltip(`${seccion}`, {
-                  permanent: true,
-                  direction: 'center',
-                  className: 'etiqueta-seccion'
-                });
-              }
-            }
-          });
-          grupo.addLayer(layer);
-        })
-        .catch(err => console.error("Error al cargar:", nombreArchivo, err));
-    }
-
-    cargarGeoJSON('Alcaldía Iztacalco.geojson', capaAlcaldia, 'alcaldia');
-    cargarGeoJSON('Distrito Local 11.geojson', capaD11_Limite, 'limite_d11');
-    cargarGeoJSON('Distrito Local 11.-Rutas.geojson', capaD11_Rutas, 'rutas');
-    cargarGeoJSON('Distrito Local 11.-Secciones electorales.geojson', capaD11_Secciones, 'secciones');
-    cargarGeoJSON('Distrito Local 15.geojson', capaD15_Limite, 'limite_d15');
-    cargarGeoJSON('Distrito Local 15.-Rutas.geojson', capaD15_Rutas, 'rutas');
-    cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, 'secciones');
-
-    map.on('zoomend', function() {
-      const currentZoom = map.getZoom();
-      const elementosEtiquetas = document.querySelectorAll('.etiqueta-seccion');
-      elementosEtiquetas.forEach(el => {
-        el.style.display = (currentZoom < 14) ? 'none' : 'block';
-      });
+      gpsMarker = L.marker(e.latlng).addTo(map).bindPopup(contenidoPopup);
+      gpsMarker.openPopup(); // Abre el cuadro emergente automáticamente
     });
 
-    function toggleRazonNoRegistro() {
-      const reg = document.getElementById('registro_plataforma').value;
-      document.getElementById('group-razon').style.display = (reg === 'false') ? 'block' : 'none';
-    }
+    map.on('locationerror', function() {
+      alert("No se pudo obtener la ubicación GPS. Verifica que la ubicación esté activada en tu teléfono.");
+    });
 
-    function validarTelefono() {
-      const tel = document.getElementById('telefono').value.replace(/\D/g, '');
-      document.getElementById('telefono').value = tel;
-      const telError = document.getElementById('tel-error');
-      if (tel.length > 0 && tel.length !== 10) {
-        telError.style.display = 'block';
-        return false;
+    function registrarEnMiUbicacionActual() {
+      if (gpsLat && gpsLng) {
+        abrirModalConCoordenadas(gpsLat, gpsLng);
       } else {
-        telError.style.display = 'none';
-        return true;
+        alert("Primero presiona '📍 Mi Ubicación' para detectar tus coordenadas.");
       }
     }
 
-    let archivoFotoSeleccionado = null;
-    function procesarFoto(event) {
-      archivoFotoSeleccionado = event.target.files[0];
-      if (archivoFotoSeleccionado) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          document.getElementById('preview-img').src = e.target.result;
-          document.getElementById('preview-container').style.display = 'block';
-        };
-        reader.readAsDataURL(archivoFotoSeleccionado);
-      }
-    }
-
-    async function extraerTextoOCR() {
-      if (!archivoFotoSeleccionado) {
-        alert("Por favor selecciona o toma una foto primero.");
-        return;
-      }
-      alert("Procesando imagen con OCR... Esto puede tomar unos segundos.");
-      try {
-        const worker = await Tesseract.createWorker('spa');
-        const ret = await worker.recognize(archivoFotoSeleccionado);
-        await worker.terminate();
-        
-        const textDetectado = ret.data.text.trim();
-        if (textDetectado) {
-          document.getElementById('observaciones').value += `\n[OCR INE]: ${textDetectado.substring(0, 150)}...`;
-          alert("¡Lectura OCR completada! Se añadió el texto en observaciones.");
-        } else {
-          alert("No se pudo extraer texto claro de la imagen.");
-        }
-      } catch (e) {
-        alert("Error procesando OCR: " + e.message);
-      }
-    }
-
-    let clickMarker;
-    
-    // Función para abrir el modal con coordenadas específicas
     function abrirModalConCoordenadas(lat, lng) {
       document.getElementById('lat').value = lat;
       document.getElementById('lng').value = lng;
@@ -412,10 +227,8 @@
       clickMarker = L.marker([lat, lng]).addTo(map);
 
       document.getElementById('modalForm').style.display = 'flex';
-      toggleRazonNoRegistro();
     }
 
-    // Evento de toque manual en el mapa
     map.on('click', function(e) {
       abrirModalConCoordenadas(e.latlng.lat, e.latlng.lng);
     });
@@ -423,266 +236,7 @@
     function cerrarModal() {
       document.getElementById('modalForm').style.display = 'none';
       if (clickMarker) map.removeLayer(clickMarker);
-      archivoFotoSeleccionado = null;
-      document.getElementById('preview-container').style.display = 'none';
     }
-
-    function abrirModalTabla() {
-      document.getElementById('modalTabla').style.display = 'flex';
-      renderizarTablaYTotales();
-    }
-
-    function cerrarModalTabla() {
-      document.getElementById('modalTabla').style.display = 'none';
-    }
-
-    function comprimirImagen(archivo, calidad = 0.7, maxAncho = 1200) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(archivo);
-        reader.onload = function(event) {
-          const img = new Image();
-          img.src = event.target.result;
-          img.onload = function() {
-            const canvas = document.createElement('canvas');
-            let ancho = img.width;
-            let alto = img.height;
-
-            if (ancho > maxAncho) {
-              alto = Math.round((alto * maxAncho) / ancho);
-              ancho = maxAncho;
-            }
-
-            canvas.width = ancho;
-            canvas.height = alto;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, ancho, alto);
-
-            canvas.toBlob((blob) => {
-              resolve(new File([blob], archivo.name, { type: 'image/jpeg' }));
-            }, 'image/jpeg', calidad);
-          };
-        };
-        reader.onerror = error => reject(error);
-      });
-    }
-
-    async function guardarRegistro() {
-      const brigadista = document.getElementById('brigadista').value.trim();
-      const telefono = document.getElementById('telefono').value.trim();
-
-      if (!brigadista) {
-        alert("Por favor ingresa el nombre del brigadista.");
-        return;
-      }
-
-      if (telefono.length > 0 && telefono.length !== 10) {
-        alert("El número telefónico debe ser de 10 dígitos exactamente.");
-        return;
-      }
-
-      let fotoUrl = null;
-
-      if (_supabase && archivoFotoSeleccionado) {
-        try {
-          const fotoComprimida = await comprimirImagen(archivoFotoSeleccionado);
-          const fileExt = 'jpg';
-          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-          
-          const { data: uploadData, error: uploadError } = await _supabase.storage
-            .from('fotos-ine')
-            .upload(fileName, fotoComprimida);
-
-          if (uploadError) {
-            console.error("Error al subir foto:", uploadError);
-          } else {
-            const { data: publicUrlData } = _supabase.storage.from('fotos-ine').getPublicUrl(fileName);
-            fotoUrl = publicUrlData.publicUrl;
-          }
-        } catch (e) {
-          console.error("Error al procesar la imagen:", e);
-        }
-      }
-
-      const nombrePersona = document.getElementById('nombre_persona').value.trim() || 'No proporcionado';
-      const simpatizante = document.getElementById('simpatizante').value === 'true';
-      const entregoIne = document.getElementById('entrego_ine').value === 'true';
-      const registroPlataforma = document.getElementById('registro_plataforma').value === 'true';
-      const razonNoRegistro = registroPlataforma ? 'N/A' : (document.getElementById('razon_no_registro').value.trim() || 'No especificado');
-      const direccion = document.getElementById('direccion').value.trim() || 'No especificada';
-      const observaciones = document.getElementById('observaciones').value.trim();
-      const lat = parseFloat(document.getElementById('lat').value);
-      const lng = parseFloat(document.getElementById('lng').value);
-
-      if (_supabase) {
-        const { error } = await _supabase.from('simpatizantes').insert([{
-          brigadista_nombre: brigadista,
-          nombre_persona: nombrePersona,
-          telefono: telefono || 'N/A',
-          es_simpatizante: simpatizante,
-          entrego_ine: entregoIne,
-          registro_plataforma: registroPlataforma,
-          razon_no_registro: razonNoRegistro,
-          foto_ine_url: fotoUrl,
-          direccion: direccion,
-          observaciones: observaciones,
-          lat: lat,
-          lng: lng
-        }]);
-
-        if (error) {
-          alert("Error al guardar registro: " + error.message);
-        } else {
-          alert("¡Registro guardado con éxito!");
-          cerrarModal();
-          cargarCasasGuardadas();
-        }
-      } else {
-        alert("¡Atención! La conexión con Supabase no está activa. Revisa tu clave API.");
-      }
-    }
-
-    async function cargarCasasGuardadas() {
-      capaCasas.clearLayers();
-      if (!_supabase) return;
-
-      const { data, error } = await _supabase.from('simpatizantes').select('*').order('id', { ascending: false });
-      if (!error && data) {
-        registrosCargados = data;
-        data.forEach(casa => {
-          const colorIcono = casa.es_simpatizante ? '#27ae60' : '#f39c12';
-          
-          let popupContent = `
-            <b>Brigadista:</b> ${casa.brigadista_nombre}<br>
-            <b>Contacto:</b> ${casa.nombre_persona || 'No proporcionado'}<br>
-            <b>Teléfono:</b> ${casa.telefono || 'N/A'}<br>
-            <b>Simpatizante:</b> ${casa.es_simpatizante ? 'Sí' : 'No'}<br>
-            <b>Entregó INE:</b> ${casa.entrego_ine ? 'Sí' : 'No'}<br>
-            <b>Plataforma:</b> ${casa.registro_plataforma ? 'Sí' : 'No (' + (casa.razon_no_registro || 'N/A') + ')'}<br>
-            <b>Dirección:</b> ${casa.direccion || 'S/N'}<br>
-          `;
-
-          if (casa.foto_ine_url) {
-            popupContent += `<br><a href="${casa.foto_ine_url}" target="_blank"><img src="${casa.foto_ine_url}" style="width:100%; border-radius:4px; max-height:100px; object-fit:cover;"></a>`;
-          }
-
-          const marcador = L.circleMarker([casa.lat, casa.lng], {
-            radius: 8,
-            fillColor: colorIcono,
-            color: '#000',
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.85
-          }).bindPopup(popupContent);
-
-          capaCasas.addLayer(marcador);
-        });
-      }
-    }
-    cargarCasasGuardadas();
-
-    function renderizarTablaYTotales() {
-      const cuerpo = document.getElementById('cuerpoTabla');
-      cuerpo.innerHTML = '';
-
-      let countTotal = registrosCargados.length;
-      let countSimpa = 0;
-      let countIne = 0;
-
-      registrosCargados.forEach(item => {
-        if (item.es_simpatizante) countSimpa++;
-        if (item.entrego_ine) countIne++;
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${item.brigadista_nombre}</td>
-          <td>${item.nombre_persona || 'N/A'}</td>
-          <td>${item.telefono || 'N/A'}</td>
-          <td><span class="${item.es_simpatizante ? 'badge-simpa' : 'badge-nosimpa'}">${item.es_simpatizante ? 'Sí' : 'No'}</span></td>
-          <td>${item.entrego_ine ? 'Sí' : 'No'}</td>
-          <td>${item.registro_plataforma ? 'Sí' : 'No'}</td>
-          <td>${item.direccion || 'S/N'}</td>
-        `;
-        cuerpo.appendChild(tr);
-      });
-
-      document.getElementById('kpi-total').innerText = countTotal;
-      document.getElementById('kpi-simpatizantes').innerText = countSimpa;
-      document.getElementById('kpi-ine').innerText = countIne;
-    }
-
-    function filtrarTabla() {
-      const texto = document.getElementById('buscadorTabla').value.toLowerCase();
-      const filas = document.querySelectorAll('#cuerpoTabla tr');
-      filas.forEach(fila => {
-        const contenido = fila.innerText.toLowerCase();
-        fila.style.display = contenido.includes(texto) ? '' : 'none';
-      });
-    }
-
-    function descargarCSV() {
-      if (registrosCargados.length === 0) {
-        alert("No hay registros cargados para exportar.");
-        return;
-      }
-      let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "ID,Brigadista,Nombre Ciudadano,Telefono,Es Simpatizante,Entrego INE,Registro Plataforma,Razon No Registro,Direccion,Observaciones,Latitud,Longitud\n";
-
-      registrosCargados.forEach(row => {
-        const fila = [
-          row.id,
-          `"${row.brigadista_nombre || ''}"`,
-          `"${row.nombre_persona || ''}"`,
-          `"${row.telefono || ''}"`,
-          row.es_simpatizante ? "Si" : "No",
-          row.entrego_ine ? "Si" : "No",
-          row.registro_plataforma ? "Si" : "No",
-          `"${row.razon_no_registro || ''}"`,
-          `"${row.direccion || ''}"`,
-          `"${(row.observaciones || '').replace(/\n/g, ' ')}"`,
-          row.lat,
-          row.lng
-        ].join(",");
-        csvContent += fila + "\n";
-      });
-
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Registros_Iztacalco_${new Date().toISOString().slice(0,10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    // Funcionalidad GPS mejorada
-    function centrarGPS() {
-      map.locate({setView: true, maxZoom: 18, enableHighAccuracy: true});
-    }
-
-    map.on('locationfound', function(e) {
-      if (gpsMarker) map.removeLayer(gpsMarker);
-
-      const lat = e.latlng.lat;
-      const lng = e.latlng.lng;
-
-      const popupHtml = `
-        <div style="text-align:center;">
-          <b>📍 ¡Estás aquí!</b><br>
-          <span style="font-size:11px; color:#555;">Coordenadas precisas obtenidas</span><br><br>
-          <button class="btn-registrar-aqui" onclick="abrirModalConCoordenadas(${lat}, ${lng})">
-            ➕ Registrar en mi ubicación actual
-          </button>
-        </div>
-      `;
-
-      L.circle(e.latlng, e.accuracy / 2, { color: '#007bff', fillColor: '#007bff', fillOpacity: 0.15 }).addTo(map);
-      gpsMarker = L.marker(e.latlng).addTo(map).bindPopup(popupHtml).openPopup();
-    });
-
-    map.on('locationerror', function() {
-      alert("No se pudo obtener la ubicación GPS. Verifica que la localización esté activada en tu dispositivo.");
-    });
   </script>
 </body>
 </html>
