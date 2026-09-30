@@ -12,31 +12,57 @@
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+  <!-- Tesseract OCR para lectura de INE desde el navegador -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; }
-    #map { height: 100%; width: 100%; }
+    body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background: #f8f9fa; }
+    #map { height: 100vh; width: 100%; }
     
     .btn-gps {
       position: absolute; bottom: 20px; right: 20px; z-index: 1000;
-      background: #007bff; color: white; border: none; padding: 12px 16px;
+      background: #007bff; color: white; border: none; padding: 12px 18px;
       border-radius: 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-      cursor: pointer; display: flex; align-items: center; gap: 8px;
+      cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px;
     }
     
+    /* Formulario Modal Desplazable */
     .modal {
       display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
-      background-color: rgba(0,0,0,0.5); justify-content: center; align-items: flex-end;
+      background-color: rgba(0,0,0,0.6); justify-content: center; align-items: flex-end;
     }
     .modal-content {
-      background: white; width: 100%; max-width: 500px; padding: 20px;
-      border-radius: 16px 16px 0 0; box-sizing: border-box; animation: slideUp 0.3s ease-out;
+      background: white; width: 100%; max-width: 500px; max-height: 85vh; overflow-y: auto;
+      padding: 20px; border-radius: 16px 16px 0 0; box-sizing: border-box; animation: slideUp 0.25s ease-out;
     }
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    
     .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 4px; }
-    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
-    .btn-submit { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 10px; }
-    .btn-close { background: #dc3545; color: white; width: 100%; padding: 8px; border: none; border-radius: 8px; margin-top: 6px; }
+    .form-group label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 4px; color: #333; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 14px;
+    }
+    .form-group input:focus { border-color: #007bff; outline: none; }
+    .error-msg { color: #dc3545; font-size: 12px; margin-top: 3px; display: none; }
+
+    .btn-submit { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 10px; cursor: pointer; }
+    .btn-close { background: #6c757d; color: white; width: 100%; padding: 10px; border: none; border-radius: 8px; margin-top: 8px; font-weight: bold; cursor: pointer; }
+    .btn-ocr { background: #17a2b8; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; margin-top: 4px; cursor: pointer; }
+    
+    #preview-container { display: none; margin-top: 8px; text-align: center; }
+    #preview-img { max-width: 100%; max-height: 150px; border-radius: 8px; border: 1px solid #ddd; }
+
+    /* Estilos para etiquetas permanentes de Secciones Electorales */
+    .etiqueta-seccion {
+      background: rgba(255, 255, 255, 0.85) !important;
+      border: 1px solid #333 !important;
+      border-radius: 4px !important;
+      font-weight: bold !important;
+      font-size: 11px !important;
+      color: #111 !important;
+      padding: 1px 4px !important;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
   </style>
 </head>
 <body>
@@ -44,32 +70,78 @@
   <div id="map"></div>
   <button class="btn-gps" onclick="centrarGPS()">📍 Mi Ubicación</button>
 
-  <!-- Modal Captura de Casas -->
+  <!-- Modal Captura Completa -->
   <div id="modalForm" class="modal">
     <div class="modal-content">
-      <h3>Registrar Visita de Casa</h3>
+      <h3 style="margin-top:0;">Registrar Visita de Casa</h3>
+      
       <div class="form-group">
-        <label>Nombre del Brigadista:</label>
-        <input type="text" id="brigadista" placeholder="Tu nombre">
+        <label>Nombre del Brigadista *</label>
+        <input type="text" id="brigadista" placeholder="Nombre de quien visita">
       </div>
+
+      <div class="form-group">
+        <label>Nombre del Ciudadano / Contacto</label>
+        <input type="text" id="nombre_persona" placeholder="Nombre completo (o 'No proporcionado')">
+      </div>
+
+      <div class="form-group">
+        <label>Teléfono (10 dígitos)</label>
+        <input type="tel" id="telefono" maxlength="10" placeholder="Ej: 5512345678" oninput="validarTelefono()">
+        <span id="tel-error" class="error-msg">El teléfono debe contener exactamente 10 dígitos numéricos.</span>
+      </div>
+
       <div class="form-group">
         <label>¿Es Simpatizante?</label>
         <select id="simpatizante">
           <option value="true">Sí (Simpatizante)</option>
-          <option value="false">No / Pendiente</option>
+          <option value="false">No / Indeciso</option>
         </select>
       </div>
+
       <div class="form-group">
-        <label>Dirección / Referencia:</label>
-        <input type="text" id="direccion" placeholder="Calle y No. exterior">
+        <label>¿Entregó copia / foto de INE?</label>
+        <select id="entrego_ine">
+          <option value="false">No</option>
+          <option value="true">Sí</option>
+        </select>
       </div>
+
       <div class="form-group">
-        <label>Observaciones:</label>
-        <input type="text" id="observaciones" placeholder="Detalles o compromisos">
+        <label>¿Registro en Plataforma?</label>
+        <select id="registro_plataforma" onchange="toggleRazonNoRegistro()">
+          <option value="true">Sí</option>
+          <option value="false">No</option>
+        </select>
       </div>
+
+      <div class="form-group" id="group-razon" style="display: none;">
+        <label>¿Por qué no se registró en plataforma?</label>
+        <input type="text" id="razon_no_registro" placeholder="Ej: No tiene smartphone, desconfianza, etc.">
+      </div>
+
+      <div class="form-group">
+        <label>Fotografía de INE / Fachada (Opcional)</label>
+        <input type="file" id="foto_ine" accept="image/*" capture="environment" onchange="procesarFoto(event)">
+        <button type="button" class="btn-ocr" onclick="extraerTextoOCR()">🔍 Escanear texto de INE (OCR)</button>
+        <div id="preview-container">
+          <img id="preview-img" src="" alt="Vista previa">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Dirección / Referencia de Casa</label>
+        <input type="text" id="direccion" placeholder="Calle, número exterior/interior">
+      </div>
+
+      <div class="form-group">
+        <label>Observaciones</label>
+        <textarea id="observaciones" rows="2" placeholder="Notas relevantes de la conversación"></textarea>
+      </div>
+
       <input type="hidden" id="lat">
       <input type="hidden" id="lng">
-      
+
       <button class="btn-submit" onclick="guardarRegistro()">Guardar Casa</button>
       <button class="btn-close" onclick="cerrarModal()">Cancelar</button>
     </div>
@@ -78,141 +150,279 @@
   <script>
     // 1. Configuración de Supabase
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; // PEGA AQUÍ TU CLAVE COMPLETA DE SUPABASE
+    const SUPABASE_KEY = 'TU_CLAVE_SB_PUBLISHABLE_AQUI'; // PEGA AQUÍ TU CLAVE COMPLETA DE SUPABASE
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // 2. Inicializar Mapa
-    const map = L.map('map').setView([19.395, -99.095], 13);
+    const map = L.map('map').setView([19.395, -99.095], 14);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
+    // Paleta de colores para diferenciar rutas de forma clara
+    const coloresRutas = [
+      '#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', 
+      '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', 
+      '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000'
+    ];
+
+    function obtenerColorRuta(numRuta) {
+      if (!numRuta) return '#3388ff';
+      const id = parseInt(numRuta.toString().replace(/\D/g, '')) || 0;
+      return coloresRutas[id % coloresRutas.length];
+    }
+
     // Grupos de capas
     const capaAlcaldia = L.layerGroup().addTo(map);
     const capaD11_Limite = L.layerGroup().addTo(map);
     const capaD11_Rutas = L.layerGroup().addTo(map);
-    const capaD11_Secciones = L.layerGroup();
+    const capaD11_Secciones = L.layerGroup().addTo(map);
     const capaD15_Limite = L.layerGroup().addTo(map);
     const capaD15_Rutas = L.layerGroup().addTo(map);
-    const capaD15_Secciones = L.layerGroup();
+    const capaD15_Secciones = L.layerGroup().addTo(map);
     const capaCasas = L.layerGroup().addTo(map);
 
-    // 3. Control de Capas (Menú interactivo desplegable)
+    // Control de Capas
     const capasOverlay = {
       "📍 Casas Registradas": capaCasas,
       "🏙️ Límite Alcaldía Iztacalco": capaAlcaldia,
       "🏛️ Distrito Local 11 (Límite)": capaD11_Limite,
-      "🔲 D11 - Rutas": capaD11_Rutas,
-      "📄 D11 - Secciones Electorales": capaD11_Secciones,
+      "🔲 D11 - Rutas Diferenciadas": capaD11_Rutas,
+      "📄 D11 - Secciones (Etiquetas)": capaD11_Secciones,
       "🏛️ Distrito Local 15 (Límite)": capaD15_Limite,
-      "🔲 D15 - Rutas": capaD15_Rutas,
-      "📄 D15 - Secciones Electorales": capaD15_Secciones
+      "🔲 D15 - Rutas Diferenciadas": capaD15_Rutas,
+      "📄 D15 - Secciones (Etiquetas)": capaD15_Secciones
     };
-
     L.control.layers(null, capasOverlay, { collapsed: false }).addTo(map);
 
-    // Función auxiliar que codifica automáticamente los nombres con espacios/acentos
-    function cargarGeoJSON(nombreArchivo, grupo, estilo) {
+    // Función de carga con etiquetas permanentes y estilos reforzados
+    function cargarGeoJSON(nombreArchivo, grupo, tipoCapa) {
       const urlCodificada = encodeURIComponent(nombreArchivo);
       fetch(urlCodificada)
-        .then(res => {
-          if (!res.ok) throw new Error("HTTP error " + res.status);
-          return res.json();
-        })
+        .then(res => res.json())
         .then(data => {
           const layer = L.geoJSON(data, {
-            style: estilo,
+            style: function(feature) {
+              if (tipoCapa === 'alcaldia') {
+                return { color: '#000000', weight: 4, fill: false, opacity: 0.9 };
+              } else if (tipoCapa === 'limite_d11') {
+                return { color: '#d35400', weight: 4, dashArray: '6, 6', fillOpacity: 0.03 };
+              } else if (tipoCapa === 'limite_d15') {
+                return { color: '#2980b9', weight: 4, dashArray: '6, 6', fillOpacity: 0.03 };
+              } else if (tipoCapa === 'rutas') {
+                const colorRuta = obtenerColorRuta(feature.properties.ruta || feature.properties.RUTA);
+                return { color: colorRuta, weight: 3.5, opacity: 0.85, fillOpacity: 0.15 };
+              } else if (tipoCapa === 'secciones') {
+                return { color: '#444444', weight: 1.5, dashArray: '3', opacity: 0.7, fillOpacity: 0.05 };
+              }
+            },
             onEachFeature: function (feature, l) {
+              const seccion = feature.properties.SECCION || feature.properties.seccion;
+              const ruta = feature.properties.ruta || feature.properties.RUTA;
+
               let info = "";
-              if (feature.properties.SECCION || feature.properties.seccion) {
-                info += `<b>Sección:</b> ${feature.properties.SECCION || feature.properties.seccion}<br>`;
-              }
-              if (feature.properties.ruta || feature.properties.RUTA) {
-                info += `<b>Ruta:</b> ${feature.properties.ruta || feature.properties.RUTA}`;
-              }
+              if (seccion) info += `<b>Sección:</b> ${seccion}<br>`;
+              if (ruta) info += `<b>Ruta:</b> ${ruta}`;
               if (info) l.bindPopup(info);
+
+              // ETIQUETA PERMANENTE DEL NÚMERO DE SECCIÓN
+              if (tipoCapa === 'secciones' && seccion) {
+                l.bindTooltip(`${seccion}`, {
+                  permanent: true,
+                  direction: 'center',
+                  className: 'etiqueta-seccion'
+                });
+              }
             }
           });
           grupo.addLayer(layer);
         })
-        .catch(err => console.error("No se pudo cargar:", nombreArchivo, err));
+        .catch(err => console.error("Error al cargar:", nombreArchivo, err));
     }
 
-    // 4. Carga directa utilizando los nombres exactos de tus archivos
-    cargarGeoJSON('Alcaldía Iztacalco.geojson', capaAlcaldia, { color: '#000000', weight: 3, fill: false });
-    cargarGeoJSON('Distrito Local 11.geojson', capaD11_Limite, { color: '#d35400', weight: 3, dashArray: '5, 5', fillOpacity: 0.05 });
-    cargarGeoJSON('Distrito Local 11.-Rutas.geojson', capaD11_Rutas, { color: '#e67e22', weight: 2, fillOpacity: 0.1 });
-    cargarGeoJSON('Distrito Local 11.-Secciones electorales.geojson', capaD11_Secciones, { color: '#8e44ad', weight: 1, dashArray: '2', fillOpacity: 0.05 });
-    cargarGeoJSON('Distrito Local 15.geojson', capaD15_Limite, { color: '#2980b9', weight: 3, dashArray: '5, 5', fillOpacity: 0.05 });
-    cargarGeoJSON('Distrito Local 15.-Rutas.geojson', capaD15_Rutas, { color: '#3498db', weight: 2, fillOpacity: 0.1 });
-    cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, { color: '#16a085', weight: 1, dashArray: '2', fillOpacity: 0.05 });
+    // Cargar capas con los nuevos estilos y funciones
+    cargarGeoJSON('Alcaldía Iztacalco.geojson', capaAlcaldia, 'alcaldia');
+    cargarGeoJSON('Distrito Local 11.geojson', capaD11_Limite, 'limite_d11');
+    cargarGeoJSON('Distrito Local 11.-Rutas.geojson', capaD11_Rutas, 'rutas');
+    cargarGeoJSON('Distrito Local 11.-Secciones electorales.geojson', capaD11_Secciones, 'secciones');
+    cargarGeoJSON('Distrito Local 15.geojson', capaD15_Limite, 'limite_d15');
+    cargarGeoJSON('Distrito Local 15.-Rutas.geojson', capaD15_Rutas, 'rutas');
+    cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, 'secciones');
 
-    // 5. Captura al hacer clic en el Mapa
+    // Validaciones UI
+    function toggleRazonNoRegistro() {
+      const reg = document.getElementById('registro_plataforma').value;
+      document.getElementById('group-razon').style.display = (reg === 'false') ? 'block' : 'none';
+    }
+
+    function validarTelefono() {
+      const tel = document.getElementById('telefono').value.replace(/\D/g, '');
+      document.getElementById('telefono').value = tel;
+      const telError = document.getElementById('tel-error');
+      if (tel.length > 0 && tel.length !== 10) {
+        telError.style.display = 'block';
+        return false;
+      } else {
+        telError.style.display = 'none';
+        return true;
+      }
+    }
+
+    let archivoFotoSeleccionado = null;
+    function procesarFoto(event) {
+      archivoFotoSeleccionado = event.target.files[0];
+      if (archivoFotoSeleccionado) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('preview-img').src = e.target.result;
+          document.getElementById('preview-container').style.display = 'block';
+        };
+        reader.readAsDataURL(archivoFotoSeleccionado);
+      }
+    }
+
+    // Extracción OCR de INE
+    async function extraerTextoOCR() {
+      if (!archivoFotoSeleccionado) {
+        alert("Por favor selecciona o toma una foto primero.");
+        return;
+      }
+      alert("Procesando imagen con OCR... Esto puede tomar unos segundos.");
+      try {
+        const worker = await Tesseract.createWorker('spa');
+        const ret = await worker.recognize(archivoFotoSeleccionado);
+        await worker.terminate();
+        
+        const textDetectado = ret.data.text.trim();
+        if (textDetectado) {
+          document.getElementById('observaciones').value += `\n[OCR INE]: ${textDetectado.substring(0, 150)}...`;
+          alert("¡Lectura OCR completada! Se añadió el texto en observaciones.");
+        } else {
+          alert("No se pudo extraer texto claro de la imagen.");
+        }
+      } catch (e) {
+        alert("Error procesando OCR: " + e.message);
+      }
+    }
+
+    // Modal Interaction
     let clickMarker;
     map.on('click', function(e) {
-      const lat = e.latlng.lat;
-      const lng = e.latlng.lng;
-
-      document.getElementById('lat').value = lat;
-      document.getElementById('lng').value = lng;
+      document.getElementById('lat').value = e.latlng.lat;
+      document.getElementById('lng').value = e.latlng.lng;
 
       if (clickMarker) map.removeLayer(clickMarker);
-      clickMarker = L.marker([lat, lng]).addTo(map);
+      clickMarker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
 
       document.getElementById('modalForm').style.display = 'flex';
+      toggleRazonNoRegistro();
     });
 
     function cerrarModal() {
       document.getElementById('modalForm').style.display = 'none';
       if (clickMarker) map.removeLayer(clickMarker);
+      archivoFotoSeleccionado = null;
+      document.getElementById('preview-container').style.display = 'none';
     }
 
-    // 6. Guardar Registro en Supabase
+    // Guardado completo en Supabase
     async function guardarRegistro() {
-      const brigadista = document.getElementById('brigadista').value;
-      const simpatizante = document.getElementById('simpatizante').value === 'true';
-      const direccion = document.getElementById('direccion').value;
-      const observaciones = document.getElementById('observaciones').value;
-      const lat = parseFloat(document.getElementById('lat').value);
-      const lng = parseFloat(document.getElementById('lng').value);
+      const brigadista = document.getElementById('brigadista').value.trim();
+      const telefono = document.getElementById('telefono').value.trim();
 
       if (!brigadista) {
         alert("Por favor ingresa el nombre del brigadista.");
         return;
       }
 
-      const { data, error } = await _supabase
-        .from('simpatizantes')
-        .insert([
-          { brigadista_nombre: brigadista, es_simpatizante: simpatizante, direccion: direccion, observaciones: observaciones, lat: lat, lng: lng }
-        ]);
+      if (telefono.length > 0 && telefono.length !== 10) {
+        alert("El número telefónico debe ser de 10 dígitos exactamente.");
+        return;
+      }
+
+      let fotoUrl = null;
+
+      if (archivoFotoSeleccionado) {
+        const fileExt = archivoFotoSeleccionado.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const { data: uploadData, error: uploadError } = await _supabase.storage
+          .from('fotos-ine')
+          .upload(fileName, archivoFotoSeleccionado);
+
+        if (uploadError) {
+          console.error("Error al subir foto:", uploadError);
+        } else {
+          const { data: publicUrlData } = _supabase.storage.from('fotos-ine').getPublicUrl(fileName);
+          fotoUrl = publicUrlData.publicUrl;
+        }
+      }
+
+      const nombrePersona = document.getElementById('nombre_persona').value.trim() || 'No proporcionado';
+      const simpatizante = document.getElementById('simpatizante').value === 'true';
+      const entregoIne = document.getElementById('entrego_ine').value === 'true';
+      const registroPlataforma = document.getElementById('registro_plataforma').value === 'true';
+      const razonNoRegistro = registroPlataforma ? 'N/A' : (document.getElementById('razon_no_registro').value.trim() || 'No especificado');
+      const direccion = document.getElementById('direccion').value.trim() || 'No especificada';
+      const observaciones = document.getElementById('observaciones').value.trim();
+      const lat = parseFloat(document.getElementById('lat').value);
+      const lng = parseFloat(document.getElementById('lng').value);
+
+      const { error } = await _supabase.from('simpatizantes').insert([{
+        brigadista_nombre: brigadista,
+        nombre_persona: nombrePersona,
+        telefono: telefono || 'N/A',
+        es_simpatizante: simpatizante,
+        entrego_ine: entregoIne,
+        registro_plataforma: registroPlataforma,
+        razon_no_registro: razonNoRegistro,
+        foto_ine_url: fotoUrl,
+        direccion: direccion,
+        observaciones: observaciones,
+        lat: lat,
+        lng: lng
+      }]);
 
       if (error) {
-        alert("Error al guardar: " + error.message);
+        alert("Error al guardar registro: " + error.message);
       } else {
-        alert("¡Casa registrada con éxito!");
+        alert("¡Registro guardado con éxito!");
         cerrarModal();
         cargarCasasGuardadas();
       }
     }
 
-    // 7. Cargar Puntos Capturados desde Supabase
+    // Cargar Casas y mostrar info extendida en Popups
     async function cargarCasasGuardadas() {
       capaCasas.clearLayers();
       const { data, error } = await _supabase.from('simpatizantes').select('*');
       if (!error && data) {
         data.forEach(casa => {
           const colorIcono = casa.es_simpatizante ? '#27ae60' : '#f39c12';
+          
+          let popupContent = `
+            <b>Brigadista:</b> ${casa.brigadista_nombre}<br>
+            <b>Contacto:</b> ${casa.nombre_persona || 'No proporcionado'}<br>
+            <b>Teléfono:</b> ${casa.telefono || 'N/A'}<br>
+            <b>Simpatizante:</b> ${casa.es_simpatizante ? 'Sí' : 'No'}<br>
+            <b>Entregó INE:</b> ${casa.entrego_ine ? 'Sí' : 'No'}<br>
+            <b>Plataforma:</b> ${casa.registro_plataforma ? 'Sí' : 'No (' + (casa.razon_no_registro || 'N/A') + ')'}<br>
+            <b>Dirección:</b> ${casa.direccion || 'S/N'}<br>
+          `;
+
+          if (casa.foto_ine_url) {
+            popupContent += `<br><a href="${casa.foto_ine_url}" target="_blank"><img src="${casa.foto_ine_url}" style="width:100%; border-radius:4px; max-height:100px; object-fit:cover;"></a>`;
+          }
+
           const marcador = L.circleMarker([casa.lat, casa.lng], {
-            radius: 7,
+            radius: 8,
             fillColor: colorIcono,
             color: '#000',
             weight: 1,
             opacity: 1,
             fillOpacity: 0.85
-          }).bindPopup(`<b>Brigadista:</b> ${casa.brigadista_nombre}<br><b>Simpatizante:</b> ${casa.es_simpatizante ? 'Sí' : 'No'}<br><b>Dirección:</b> ${casa.direccion || 'S/N'}`);
+          }).bindPopup(popupContent);
 
           capaCasas.addLayer(marcador);
         });
@@ -220,7 +430,7 @@
     }
     cargarCasasGuardadas();
 
-    // 8. GPS
+    // GPS
     function centrarGPS() {
       map.locate({setView: true, maxZoom: 18});
     }
