@@ -15,14 +15,13 @@
   <!-- Tesseract OCR para lectura de INE -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-  <!-- Librería para convertir formatos HEIC/HEIF (iPhone) a JPEG en tiempo real -->
+  <!-- Librería para convertir formatos HEIC/HEIF (iPhone) a JPEG -->
   <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background: #f8f9fa; }
     #map { height: 100vh; width: 100%; }
     
-    /* Botones flotantes del mapa */
     .btn-gps {
       position: absolute; bottom: 20px; right: 20px; z-index: 1000;
       background: #007bff; color: white; border: none; padding: 12px 18px;
@@ -43,7 +42,6 @@
       margin-top: 6px; width: 100%; text-align: center; display: inline-block;
     }
     
-    /* Modales Desplazables */
     .modal {
       display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
       background-color: rgba(0,0,0,0.6); justify-content: center; align-items: flex-end;
@@ -67,10 +65,8 @@
     .btn-ocr { background: #17a2b8; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-top: 6px; cursor: pointer; display: inline-block; font-weight: bold; }
     .btn-export { background: #17a2b8; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-bottom: 12px; }
 
-    /* Indicador de carga de procesamiento de imagen */
     .loading-status { font-size: 12px; color: #007bff; font-weight: bold; margin-top: 4px; display: none; }
 
-    /* Estilo compacto para etiquetas de Secciones */
     .etiqueta-seccion {
       background: rgba(255, 255, 255, 0.75) !important;
       border: 1px solid rgba(0, 0, 0, 0.4) !important;
@@ -82,7 +78,6 @@
       box-shadow: none !important;
     }
 
-    /* Estilos del Dashboard y Tabla */
     .kpi-container { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
     .kpi-card { flex: 1; min-width: 110px; background: #eef2f7; padding: 12px; border-radius: 8px; text-align: center; }
     .kpi-card h4 { margin: 0; font-size: 11px; color: #555; text-transform: uppercase; }
@@ -94,7 +89,6 @@
     .badge-simpa { background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
     .badge-nosimpa { background: #ffc107; color: #222; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
 
-    /* Modal de Autenticación por NIP */
     #modalNip {
       display: flex; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%;
       background-color: rgba(0,0,0,0.85); justify-content: center; align-items: center;
@@ -158,6 +152,18 @@
         <span id="tel-error" class="error-msg">El teléfono debe contener exactamente 10 dígitos numéricos.</span>
       </div>
 
+      <!-- CASILLA DEDICADA PARA SECCIÓN ELECTORAL (FRENTE) -->
+      <div class="form-group" style="background:#e8f8f5; padding:10px; border-radius:8px; border:1px solid #a3e4d7;">
+        <label style="color:#117a65;">🗳️ Sección Electoral (Extraída del Frente)</label>
+        <input type="text" id="seccion_electoral" placeholder="Se llena automáticamente al escanear el Frente (Ej: 1540)" style="background:#fff; font-weight:bold; color:#117a65;">
+      </div>
+
+      <!-- CASILLA DEDICADA PARA CÓDIGO OCR REVERSO -->
+      <div class="form-group" style="background:#eef6ff; padding:10px; border-radius:8px; border:1px solid #b6d4fe;">
+        <label style="color:#084298;">🆔 Código OCR / CIC / MRZ (Extraído del Reverso)</label>
+        <input type="text" id="ocr_resultado" placeholder="Se llena automáticamente al escanear el Reverso (Ej: IDMEX...)" style="background:#fff; font-weight:bold; color:#0d6efd;">
+      </div>
+
       <div class="form-group">
         <label>¿Es Simpatizante?</label>
         <select id="simpatizante">
@@ -189,10 +195,10 @@
 
       <!-- Sección Frente de la INE -->
       <div class="form-group">
-        <label>Fotografía del Frente de INE (Cámara o Galería - JPG, PNG, HEIC)</label>
+        <label>📷 Fotografía del Frente de INE</label>
         <input type="file" id="foto_ine_frente" accept="image/*,.heic,.heif" onchange="procesarFotoFrente(event)">
         <div id="status-frente" class="loading-status">⏳ Procesando imagen...</div>
-        <button type="button" class="btn-ocr" onclick="extraerTextoFrente()">🔍 Escanear Frente (OCR)</button>
+        <button type="button" class="btn-ocr" onclick="extraerTextoFrente()">🔍 Escanear Sección Electoral (Frente)</button>
         <div id="preview-container-frente" style="display:none; margin-top:8px; text-align:center;">
           <img id="preview-img-frente" src="" alt="Vista previa frente" style="max-width:100%; max-height:140px; border-radius:8px; border: 1px solid #ddd;">
         </div>
@@ -200,10 +206,10 @@
 
       <!-- Sección Reverso de la INE -->
       <div class="form-group">
-        <label>Fotografía del Reverso de INE (Cámara o Galería - JPG, PNG, HEIC)</label>
+        <label>📷 Fotografía del Reverso de INE</label>
         <input type="file" id="foto_ine_reverso" accept="image/*,.heic,.heif" onchange="procesarFotoReverso(event)">
         <div id="status-reverso" class="loading-status">⏳ Procesando imagen...</div>
-        <button type="button" class="btn-ocr" onclick="extraerTextoReverso()">🔍 Escanear Reverso (OCR)</button>
+        <button type="button" class="btn-ocr" onclick="extraerTextoReverso()">🔍 Escanear Código OCR / CIC (Reverso)</button>
         <div id="preview-container-reverso" style="display:none; margin-top:8px; text-align:center;">
           <img id="preview-img-reverso" src="" alt="Vista previa reverso" style="max-width:100%; max-height:140px; border-radius:8px; border: 1px solid #ddd;">
         </div>
@@ -216,7 +222,7 @@
 
       <div class="form-group">
         <label>Observaciones</label>
-        <textarea id="observaciones" rows="3" placeholder="Notas relevantes de la conversación u OCR"></textarea>
+        <textarea id="observaciones" rows="3" placeholder="Notas manuales del brigadista..."></textarea>
       </div>
 
       <input type="hidden" id="lat">
@@ -227,7 +233,7 @@
     </div>
   </div>
 
-  <!-- Modal Tabla y Resumen de Registros -->
+  <!-- Modal Tabla y Resumen -->
   <div id="modalTabla" class="modal">
     <div class="modal-content">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -235,7 +241,6 @@
         <button class="btn-export" onclick="descargarCSV()">📥 Exportar CSV</button>
       </div>
 
-      <!-- Tarjetas de Totales -->
       <div class="kpi-container">
         <div class="kpi-card">
           <h4>Total Visitas</h4>
@@ -251,16 +256,16 @@
         </div>
       </div>
 
-      <!-- Buscador -->
-      <input type="text" id="buscadorTabla" placeholder="🔍 Buscar por brigadista, ciudadano o dirección..." onkeyup="filtrarTabla()" style="width:100%; padding:8px; margin-bottom:10px; border:1px solid #ccc; border-radius:6px;">
+      <input type="text" id="buscadorTabla" placeholder="🔍 Buscar por brigadista, ciudadano, sección o dirección..." onkeyup="filtrarTabla()" style="width:100%; padding:8px; margin-bottom:10px; border:1px solid #ccc; border-radius:6px;">
 
-      <!-- Tabla de Datos -->
       <div style="overflow-x:auto;">
         <table class="tabla-registros" id="tablaDatos">
           <thead>
             <tr>
               <th>Brigadista</th>
               <th>Contacto</th>
+              <th>Sección</th>
+              <th>Clave/OCR INE</th>
               <th>Teléfono</th>
               <th>Estatus</th>
               <th>INE</th>
@@ -268,9 +273,7 @@
               <th>Dirección</th>
             </tr>
           </thead>
-          <tbody id="cuerpoTabla">
-            <!-- Registros dinámicos -->
-          </tbody>
+          <tbody id="cuerpoTabla"></tbody>
         </table>
       </div>
 
@@ -279,9 +282,6 @@
   </div>
 
   <script>
-    // ==========================================
-    // SEGURIDAD: CLAVE / NIP DE ACCESO
-    // ==========================================
     const NIP_AUTORIZADO = "ALP_2026";
 
     function verificarAccesoAutomatico() {
@@ -317,7 +317,6 @@
 
     verificarAccesoAutomatico();
 
-    // Configuración de Supabase
     const SUPABASE_URL = 'https://yaewqbjqcmkfqhupyebg.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_iG_U5IfGmBx0_pWBancEjw_UkJJERlc'; 
     
@@ -327,17 +326,13 @@
         _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       }
     } catch (e) {
-      console.warn("Supabase no configurado correctamente todavía:", e);
+      console.warn("Supabase no configurado:", e);
     }
 
     let registrosCargados = [];
     let gpsMarker = null;
 
-    // Inicializar Mapa
-    const map = L.map('map', {
-      doubleClickZoom: false,
-      tap: true
-    }).setView([19.395, -99.095], 14);
+    const map = L.map('map', { doubleClickZoom: false, tap: true }).setView([19.395, -99.095], 14);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -356,7 +351,6 @@
       return coloresRutas[id % coloresRutas.length];
     }
 
-    // Grupos de capas
     const capaAlcaldia = L.layerGroup().addTo(map);
     const capaD11_Limite = L.layerGroup().addTo(map);
     const capaD11_Rutas = L.layerGroup().addTo(map);
@@ -379,46 +373,33 @@
     L.control.layers(null, capasOverlay, { collapsed: false }).addTo(map);
 
     function cargarGeoJSON(nombreArchivo, grupo, tipoCapa) {
-      const urlCodificada = encodeURIComponent(nombreArchivo);
-      fetch(urlCodificada)
+      fetch(encodeURIComponent(nombreArchivo))
         .then(res => res.json())
         .then(data => {
           const layer = L.geoJSON(data, {
             style: function(feature) {
-              if (tipoCapa === 'alcaldia') {
-                return { color: '#000000', weight: 3.5, fill: false, opacity: 0.9 };
-              } else if (tipoCapa === 'limite_d11') {
-                return { color: '#d35400', weight: 3.5, dashArray: '6, 6', fillOpacity: 0.03 };
-              } else if (tipoCapa === 'limite_d15') {
-                return { color: '#2980b9', weight: 3.5, dashArray: '6, 6', fillOpacity: 0.03 };
-              } else if (tipoCapa === 'rutas') {
-                const colorRuta = obtenerColorRuta(feature.properties.ruta || feature.properties.RUTA);
-                return { color: colorRuta, weight: 3, opacity: 0.85, fillOpacity: 0.15 };
-              } else if (tipoCapa === 'secciones') {
-                return { color: '#444444', weight: 1.2, dashArray: '3', opacity: 0.7, fillOpacity: 0.05 };
-              }
+              if (tipoCapa === 'alcaldia') return { color: '#000000', weight: 3.5, fill: false, opacity: 0.9 };
+              if (tipoCapa === 'limite_d11') return { color: '#d35400', weight: 3.5, dashArray: '6, 6', fillOpacity: 0.03 };
+              if (tipoCapa === 'limite_d15') return { color: '#2980b9', weight: 3.5, dashArray: '6, 6', fillOpacity: 0.03 };
+              if (tipoCapa === 'rutas') return { color: obtenerColorRuta(feature.properties.ruta || feature.properties.RUTA), weight: 3, opacity: 0.85, fillOpacity: 0.15 };
+              if (tipoCapa === 'secciones') return { color: '#444444', weight: 1.2, dashArray: '3', opacity: 0.7, fillOpacity: 0.05 };
             },
             onEachFeature: function (feature, l) {
               const seccion = feature.properties.SECCION || feature.properties.seccion;
               const ruta = feature.properties.ruta || feature.properties.RUTA;
-
               let info = "";
               if (seccion) info += `<b>Sección:</b> ${seccion}<br>`;
               if (ruta) info += `<b>Ruta:</b> ${ruta}`;
               if (info) l.bindPopup(info);
 
               if (tipoCapa === 'secciones' && seccion) {
-                l.bindTooltip(`${seccion}`, {
-                  permanent: true,
-                  direction: 'center',
-                  className: 'etiqueta-seccion'
-                });
+                l.bindTooltip(`${seccion}`, { permanent: true, direction: 'center', className: 'etiqueta-seccion' });
               }
             }
           });
           grupo.addLayer(layer);
         })
-        .catch(err => console.error("Error al cargar:", nombreArchivo, err));
+        .catch(err => console.error("Error GeoJSON:", nombreArchivo, err));
     }
 
     cargarGeoJSON('Alcaldía Iztacalco.geojson', capaAlcaldia, 'alcaldia');
@@ -431,8 +412,7 @@
 
     map.on('zoomend', function() {
       const currentZoom = map.getZoom();
-      const elementosEtiquetas = document.querySelectorAll('.etiqueta-seccion');
-      elementosEtiquetas.forEach(el => {
+      document.querySelectorAll('.etiqueta-seccion').forEach(el => {
         el.style.display = (currentZoom < 14) ? 'none' : 'block';
       });
     });
@@ -456,12 +436,11 @@
     }
 
     // =========================================================================
-    // MANEJO DE FOTOS, FORMATOS MULTIPLE (HEIC, PNG, JPG) Y COMPRESIÓN / OCR
+    // LÓGICA OCR DE PRECISIÓN (FRENTE Y REVERSO)
     // =========================================================================
     let archivoFotoFrente = null;
     let archivoFotoReverso = null;
 
-    // Convierte archivos HEIC/HEIF de iPhones a JPEG estandarizado si es necesario
     async function estandarizarImagen(archivo) {
       if (!archivo) return null;
       const nombreLower = archivo.name.toLowerCase();
@@ -474,7 +453,7 @@
             const blobFinal = Array.isArray(blobConvertido) ? blobConvertido[0] : blobConvertido;
             return new File([blobFinal], archivo.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
           } catch (e) {
-            console.warn("No se pudo convertir HEIC con heic2any, intentando lectura directa:", e);
+            console.warn("Error HEIC:", e);
           }
         }
       }
@@ -517,7 +496,6 @@
     async function procesarFotoFrente(event) {
       const fileRaw = event.target.files[0];
       if (!fileRaw) return;
-
       const status = document.getElementById('status-frente');
       status.style.display = 'block';
 
@@ -533,7 +511,7 @@
         };
         reader.readAsDataURL(archivoFotoFrente);
       } catch (err) {
-        alert("Error al procesar la imagen seleccionada: " + err.message);
+        alert("Error al procesar la imagen del frente: " + err.message);
         status.style.display = 'none';
       }
     }
@@ -541,7 +519,6 @@
     async function procesarFotoReverso(event) {
       const fileRaw = event.target.files[0];
       if (!fileRaw) return;
-
       const status = document.getElementById('status-reverso');
       status.style.display = 'block';
 
@@ -557,54 +534,91 @@
         };
         reader.readAsDataURL(archivoFotoReverso);
       } catch (err) {
-        alert("Error al procesar la imagen seleccionada: " + err.message);
+        alert("Error al procesar la imagen del reverso: " + err.message);
         status.style.display = 'none';
       }
     }
 
+    // 1. ESCANEO DEL FRENTE: EXPRESIÓN REGULAR PARA SECCIÓN ELECTORAL
     async function extraerTextoFrente() {
       if (!archivoFotoFrente) {
-        alert("Por favor selecciona o toma la foto del FRENTE de la INE primero.");
+        alert("Por favor selecciona o toma primero la foto del FRENTE.");
         return;
       }
-      alert("Analizando frente de la INE con OCR...");
+      const status = document.getElementById('status-frente');
+      status.innerText = "⏳ Buscando Sección Electoral en el frente...";
+      status.style.display = 'block';
+
       try {
         const worker = await Tesseract.createWorker('spa');
         const ret = await worker.recognize(archivoFotoFrente);
         await worker.terminate();
+
+        const texto = ret.data.text.toUpperCase().replace(/\s+/g, ' ');
         
-        const texto = ret.data.text;
-        if (texto) {
-          document.getElementById('observaciones').value += `\n[OCR FRENTE]: ${texto.substring(0, 200)}...`;
-          alert("¡Lectura del frente completada con éxito!");
+        // Búsqueda específica: "SECCIÓN" / "SECCION" seguida de 4 dígitos
+        const patronSeccion = /SECCI[OÓ0]N\s*[:.]?\s*(\d{4})/i;
+        const matchSeccion = texto.match(patronSeccion);
+
+        if (matchSeccion && matchSeccion[1]) {
+          document.getElementById('seccion_electoral').value = matchSeccion[1];
+          alert(`✅ ¡Sección Electoral detectada!: ${matchSeccion[1]}`);
         } else {
-          alert("No se pudo extraer texto claro del frente.");
+          // Búsqueda secundaria de respaldo (bloque aislado de 4 dígitos)
+          const matchCuatroDigitos = texto.match(/\b\d{4}\b/g);
+          if (matchCuatroDigitos && matchCuatroDigitos.length > 0) {
+            document.getElementById('seccion_electoral').value = matchCuatroDigitos[0];
+            alert(`⚠️ Posible número de sección detectado: ${matchCuatroDigitos[0]}. Por favor verifica que sea correcto.`);
+          } else {
+            alert("❌ No se pudo extraer la Sección Electoral de 4 dígitos automáticamente. Ingrésala manualmente.");
+          }
         }
       } catch (e) {
-        alert("Error procesando OCR del frente: " + e.message);
+        alert("Error al ejecutar OCR del Frente: " + e.message);
+      } finally {
+        status.style.display = 'none';
+        status.innerText = "⏳ Procesando imagen...";
       }
     }
 
+    // 2. ESCANEO DEL REVERSO: FILTRO ESTRICTO PARA CÓDIGOS MRZ / CIC / IDMEX
     async function extraerTextoReverso() {
       if (!archivoFotoReverso) {
-        alert("Por favor selecciona o toma la foto del REVERSO de la INE primero.");
+        alert("Por favor selecciona o toma primero la foto del REVERSO.");
         return;
       }
-      alert("Analizando reverso y código OCR...");
+      const status = document.getElementById('status-reverso');
+      status.innerText = "⏳ Extrayendo código MRZ/CIC del reverso...";
+      status.style.display = 'block';
+
       try {
         const worker = await Tesseract.createWorker('spa');
         const ret = await worker.recognize(archivoFotoReverso);
         await worker.terminate();
+
+        const texto = ret.data.text.toUpperCase();
+
+        // 1. Filtrar únicamente la línea MRZ principal del INE (IDMEX...)
+        const matchIDMEX = texto.match(/IDMEX[0-9A-Z<]+/i);
         
-        const texto = ret.data.text;
-        if (texto) {
-          document.getElementById('observaciones').value += `\n[OCR REVERSO]: ${texto.substring(0, 150)}...`;
-          alert("¡Lectura del reverso completada!");
+        // 2. Filtrar únicamente código CIC/OCR de 9 a 13 dígitos
+        const matchCIC = texto.match(/\b\d{9,13}\b/);
+
+        if (matchIDMEX) {
+          const idmexLimpio = matchIDMEX[0].replace(/</g, '').trim();
+          document.getElementById('ocr_resultado').value = idmexLimpio;
+          alert(`✅ ¡Código MRZ Reverso capturado correctamente!`);
+        } else if (matchCIC) {
+          document.getElementById('ocr_resultado').value = matchCIC[0];
+          alert(`✅ ¡Código CIC/OCR detectado!: ${matchCIC[0]}`);
         } else {
-          alert("No se pudo extraer el OCR del reverso.");
+          alert("❌ No se detectó un código mecánico válido (IDMEX/CIC). Limpia el visor y toma la foto con mejor iluminación.");
         }
       } catch (e) {
-        alert("Error procesando OCR del reverso: " + e.message);
+        alert("Error al ejecutar OCR del Reverso: " + e.message);
+      } finally {
+        status.style.display = 'none';
+        status.innerText = "⏳ Procesando imagen...";
       }
     }
 
@@ -634,6 +648,9 @@
       document.getElementById('preview-container-reverso').style.display = 'none';
       document.getElementById('foto_ine_frente').value = '';
       document.getElementById('foto_ine_reverso').value = '';
+      document.getElementById('seccion_electoral').value = '';
+      document.getElementById('ocr_resultado').value = '';
+      document.getElementById('observaciones').value = '';
     }
 
     function abrirModalTabla() {
@@ -665,29 +682,29 @@
       if (_supabase && archivoASubir) {
         try {
           const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
-          
           const { data: uploadData, error: uploadError } = await _supabase.storage
             .from('fotos-ine')
             .upload(fileName, archivoASubir);
 
-          if (uploadError) {
-            console.error("Error al subir foto:", uploadError);
-          } else {
+          if (!uploadError) {
             const { data: publicUrlData } = _supabase.storage.from('fotos-ine').getPublicUrl(fileName);
             fotoUrl = publicUrlData.publicUrl;
           }
         } catch (e) {
-          console.error("Error al procesar la imagen:", e);
+          console.error("Error al subir imagen:", e);
         }
       }
 
       const nombrePersona = document.getElementById('nombre_persona').value.trim() || 'No proporcionado';
+      const seccion = document.getElementById('seccion_electoral').value.trim() || null;
+      const ocrDato = document.getElementById('ocr_resultado').value.trim() || null;
       const simpatizante = document.getElementById('simpatizante').value === 'true';
       const entregoIne = document.getElementById('entrego_ine').value === 'true';
       const registroPlataforma = document.getElementById('registro_plataforma').value === 'true';
       const razonNoRegistro = registroPlataforma ? 'N/A' : (document.getElementById('razon_no_registro').value.trim() || 'No especificado');
       const direccion = document.getElementById('direccion').value.trim() || 'No especificada';
       const observaciones = document.getElementById('observaciones').value.trim();
+
       const lat = parseFloat(document.getElementById('lat').value);
       const lng = parseFloat(document.getElementById('lng').value);
 
@@ -695,7 +712,9 @@
         const { error } = await _supabase.from('simpatizantes').insert([{
           brigadista_nombre: brigadista,
           nombre_persona: nombrePersona,
-          telefono: telefono || 'N/A',
+          seccion_electoral: seccion,            // Mapeado a columna SQL seccion_electoral
+          ine_clave_elector: ocrDato,           // Mapeado a columna SQL ine_clave_elector
+          telefono: telefono || null,
           es_simpatizante: simpatizante,
           entrego_ine: entregoIne,
           registro_plataforma: registroPlataforma,
@@ -708,14 +727,14 @@
         }]);
 
         if (error) {
-          alert("Error al guardar registro: " + error.message);
+          alert("Error al guardar en Supabase: " + error.message);
         } else {
-          alert("¡Registro guardado con éxito!");
+          alert("¡Registro guardado exitosamente!");
           cerrarModal();
           cargarCasasGuardadas();
         }
       } else {
-        alert("¡Atención! La conexión con Supabase no está activa. Revisa tu clave API.");
+        alert("Atención: Conexión con Supabase no disponible.");
       }
     }
 
@@ -732,12 +751,18 @@
           let popupContent = `
             <b>Brigadista:</b> ${casa.brigadista_nombre}<br>
             <b>Contacto:</b> ${casa.nombre_persona || 'No proporcionado'}<br>
+            <b>Sección Electoral:</b> ${casa.seccion_electoral || 'N/A'}<br>
+            <b>Clave/OCR INE:</b> ${casa.ine_clave_elector || 'N/A'}<br>
             <b>Teléfono:</b> ${casa.telefono || 'N/A'}<br>
             <b>Simpatizante:</b> ${casa.es_simpatizante ? 'Sí' : 'No'}<br>
             <b>Entregó INE:</b> ${casa.entrego_ine ? 'Sí' : 'No'}<br>
             <b>Plataforma:</b> ${casa.registro_plataforma ? 'Sí' : 'No (' + (casa.razon_no_registro || 'N/A') + ')'}<br>
             <b>Dirección:</b> ${casa.direccion || 'S/N'}<br>
           `;
+
+          if (casa.observaciones) {
+            popupContent += `<b>Notas:</b> ${casa.observaciones}<br>`;
+          }
 
           if (casa.foto_ine_url) {
             popupContent += `<br><a href="${casa.foto_ine_url}" target="_blank"><img src="${casa.foto_ine_url}" style="width:100%; border-radius:4px; max-height:100px; object-fit:cover;"></a>`;
@@ -774,6 +799,8 @@
         tr.innerHTML = `
           <td>${item.brigadista_nombre}</td>
           <td>${item.nombre_persona || 'N/A'}</td>
+          <td><b>${item.seccion_electoral || 'N/A'}</b></td>
+          <td><code style="color:#0d6efd;">${item.ine_clave_elector || 'N/A'}</code></td>
           <td>${item.telefono || 'N/A'}</td>
           <td><span class="${item.es_simpatizante ? 'badge-simpa' : 'badge-nosimpa'}">${item.es_simpatizante ? 'Sí' : 'No'}</span></td>
           <td>${item.entrego_ine ? 'Sí' : 'No'}</td>
@@ -790,26 +817,26 @@
 
     function filtrarTabla() {
       const texto = document.getElementById('buscadorTabla').value.toLowerCase();
-      const filas = document.querySelectorAll('#cuerpoTabla tr');
-      filas.forEach(fila => {
-        const contenido = fila.innerText.toLowerCase();
-        fila.style.display = contenido.includes(texto) ? '' : 'none';
+      document.querySelectorAll('#cuerpoTabla tr').forEach(fila => {
+        fila.style.display = fila.innerText.toLowerCase().includes(texto) ? '' : 'none';
       });
     }
 
     function descargarCSV() {
       if (registrosCargados.length === 0) {
-        alert("No hay registros cargados para exportar.");
+        alert("No hay registros para exportar.");
         return;
       }
       let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "ID,Brigadista,Nombre Ciudadano,Telefono,Es Simpatizante,Entrego INE,Registro Plataforma,Razon No Registro,Direccion,Observaciones,Latitud,Longitud\n";
+      csvContent += "ID,Brigadista,Nombre Ciudadano,Seccion Electoral,Clave OCR INE,Telefono,Es Simpatizante,Entrego INE,Registro Plataforma,Razon No Registro,Direccion,Observaciones,Latitud,Longitud\n";
 
       registrosCargados.forEach(row => {
         const fila = [
           row.id,
           `"${row.brigadista_nombre || ''}"`,
           `"${row.nombre_persona || ''}"`,
+          `"${row.seccion_electoral || ''}"`,
+          `"${row.ine_clave_elector || ''}"`,
           `"${row.telefono || ''}"`,
           row.es_simpatizante ? "Si" : "No",
           row.entrego_ine ? "Si" : "No",
@@ -823,9 +850,8 @@
         csvContent += fila + "\n";
       });
 
-      const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
+      link.setAttribute("href", encodeURI(csvContent));
       link.setAttribute("download", `Registros_Iztacalco_${new Date().toISOString().slice(0,10)}.csv`);
       document.body.appendChild(link);
       link.click();
@@ -838,14 +864,13 @@
 
     map.on('locationfound', function(e) {
       if (gpsMarker) map.removeLayer(gpsMarker);
-
       const lat = e.latlng.lat;
       const lng = e.latlng.lng;
 
       const popupHtml = `
         <div style="text-align:center;">
           <b>📍 ¡Estás aquí!</b><br>
-          <span style="font-size:11px; color:#555;">Coordenadas precisas obtenidas</span><br><br>
+          <span style="font-size:11px; color:#555;">Ubicación GPS precisa</span><br><br>
           <button class="btn-registrar-aqui" onclick="abrirModalConCoordenadas(${lat}, ${lng})">
             ➕ Registrar en mi ubicación actual
           </button>
@@ -857,7 +882,7 @@
     });
 
     map.on('locationerror', function() {
-      alert("No se pudo obtener la ubicación GPS. Verifica que la localización esté activada en tu dispositivo.");
+      alert("No se pudo obtener la ubicación GPS.");
     });
   </script>
 </body>
