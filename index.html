@@ -66,7 +66,7 @@
 
     .btn-submit { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 10px; cursor: pointer; }
     .btn-close { background: #6c757d; color: white; width: 100%; padding: 10px; border: none; border-radius: 8px; margin-top: 8px; font-weight: bold; cursor: pointer; }
-    .btn-ocr { background: #17a2b8; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-top: 6px; cursor: pointer; display: inline-block; font-weight: bold; }
+    .btn-ocr { background: #17a2b8; color: white; border: none; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-top: 4px; cursor: pointer; display: inline-block; font-weight: bold; }
     .btn-export { background: #17a2b8; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-bottom: 12px; }
 
     .loading-status { font-size: 12px; color: #007bff; font-weight: bold; margin-top: 4px; display: none; }
@@ -175,14 +175,45 @@
 
       <!-- CASILLA DEDICADA PARA SECCIÓN ELECTORAL -->
       <div class="form-group" style="background:#e8f8f5; padding:10px; border-radius:8px; border:1px solid #a3e4d7;">
-        <label style="color:#117a65;">🗳️ Sección Electoral </label>
-        <input type="text" id="seccion_electoral" placeholder="Se llena automáticamente con Frente o Reverso (Ej: 1540)" style="background:#fff; font-weight:bold; color:#117a65;">
+        <label style="color:#117a65;">🗳️️ Sección Electoral (4 dígitos)</label>
+        <input type="text" id="seccion_electoral" placeholder="Se llena automáticamente con OCR o Frente (Ej: 1540)" style="background:#fff; font-weight:bold; color:#117a65;">
       </div>
 
       <!-- CASILLA DEDICADA PARA CÓDIGO OCR REVERSO (13 DÍGITOS) -->
       <div class="form-group" style="background:#eef6ff; padding:10px; border-radius:8px; border:1px solid #b6d4fe;">
-        <label style="color:#084298;">🆔 Código OCR (13 Dígitos tras <<)</label>
-        <input type="text" id="ocr_resultado" placeholder="Se llena automáticamente al escanear el Reverso (Ej: 1540567890123)" style="background:#fff; font-weight:bold; color:#0d6efd;">
+        <label style="color:#084298;">🆔 Código OCR (13 Dígitos)</label>
+        <input type="text" id="ocr_resultado" placeholder="Se llena automáticamente al escanear el Reverso (Ej: 1540123456789)" style="background:#fff; font-weight:bold; color:#0d6efd;">
+      </div>
+
+      <!-- SECCIÓN DE CARGA DE FOTOGRAFÍAS Y BOTONES DE ESCANEO -->
+      <div style="background:#f8f9fa; border:1px solid #ced4da; padding:12px; border-radius:10px; margin-bottom:15px;">
+        <h4 style="margin:0 0 10px 0; font-size:14px; color:#495057;">📷 Carga de Credencial (Cargar ambos lados primero)</h4>
+        
+        <!-- Frente -->
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>1. Fotografía del Frente de INE</label>
+          <input type="file" id="foto_ine_frente" accept="image/*" onchange="procesarFotoFrente(event)">
+          <div id="status-frente" class="loading-status">⏳ Procesando imagen...</div>
+          <div id="preview-container-frente" style="display:none; margin-top:6px; text-align:center;">
+            <img id="preview-img-frente" src="" alt="Vista previa frente" style="max-width:100%; max-height:120px; border-radius:6px; border: 1px solid #ddd;">
+          </div>
+        </div>
+
+        <!-- Reverso -->
+        <div class="form-group" style="margin-bottom:12px;">
+          <label>2. Fotografía del Reverso de INE</label>
+          <input type="file" id="foto_ine_reverso" accept="image/*" onchange="procesarFotoReverso(event)">
+          <div id="status-reverso" class="loading-status">⏳ Procesando imagen...</div>
+          <div id="preview-container-reverso" style="display:none; margin-top:6px; text-align:center;">
+            <img id="preview-img-reverso" src="" alt="Vista previa reverso" style="max-width:100%; max-height:120px; border-radius:6px; border: 1px solid #ddd;">
+          </div>
+        </div>
+
+        <!-- Botones de Escaneo juntos en la parte inferior -->
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+          <button type="button" class="btn-ocr" style="flex:1; min-width:140px; background:#0d6efd;" onclick="extraerTextoReverso()">🔍 Escanear OCR y Sección (Reverso)</button>
+          <button type="button" class="btn-ocr" style="flex:1; min-width:140px; background:#17a2b8;" onclick="extraerTextoFrente()">🔍 Escanear Sección (Frente - Opcional)</button>
+        </div>
       </div>
 
       <div class="form-group">
@@ -212,28 +243,6 @@
       <div class="form-group" id="group-razon" style="display: none;">
         <label>¿Por qué no se registró en plataforma?</label>
         <input type="text" id="razon_no_registro" placeholder="Ej: No tiene smartphone, desconfianza, etc.">
-      </div>
-
-      <!-- Sección Frente de la INE -->
-      <div class="form-group">
-        <label>📷 Fotografía del Frente de INE (Tomar foto o elegir de Galería)</label>
-        <input type="file" id="foto_ine_frente" accept="image/*" onchange="procesarFotoFrente(event)">
-        <div id="status-frente" class="loading-status">⏳ Procesando imagen...</div>
-        <button type="button" class="btn-ocr" onclick="extraerTextoFrente()">🔍 Escanear Sección Electoral (Frente)</button>
-        <div id="preview-container-frente" style="display:none; margin-top:8px; text-align:center;">
-          <img id="preview-img-frente" src="" alt="Vista previa frente" style="max-width:100%; max-height:140px; border-radius:8px; border: 1px solid #ddd;">
-        </div>
-      </div>
-
-      <!-- Sección Reverso de la INE -->
-      <div class="form-group">
-        <label>📷 Fotografía del Reverso de INE (Tomar foto o elegir de Galería)</label>
-        <input type="file" id="foto_ine_reverso" accept="image/*" onchange="procesarFotoReverso(event)">
-        <div id="status-reverso" class="loading-status">⏳ Procesando imagen...</div>
-        <button type="button" class="btn-ocr" onclick="extraerTextoReverso()">🔍 Escanear Código OCR (Reverso)</button>
-        <div id="preview-container-reverso" style="display:none; margin-top:8px; text-align:center;">
-          <img id="preview-img-reverso" src="" alt="Vista previa reverso" style="max-width:100%; max-height:140px; border-radius:8px; border: 1px solid #ddd;">
-        </div>
       </div>
 
       <div class="form-group">
@@ -549,12 +558,10 @@
           archivoFotoFrente = archivoEditado;
           document.getElementById('preview-img-frente').src = URL.createObjectURL(archivoEditado);
           document.getElementById('preview-container-frente').style.display = 'block';
-          extraerTextoFrente();
         } else if (fotoTipoActual === 'reverso') {
           archivoFotoReverso = archivoEditado;
           document.getElementById('preview-img-reverso').src = URL.createObjectURL(archivoEditado);
           document.getElementById('preview-container-reverso').style.display = 'block';
-          extraerTextoReverso();
         }
 
         cerrarCropper();
@@ -597,14 +604,64 @@
     // EXTRACCIÓN OCR CON TESSERACT
     // =========================================================================
 
-    // 1. ESCANEO DEL FRENTE: DETECCIÓN VERTICAL Y HORIZONTAL DE SECCIÓN
+    // 1. ESCANEO DEL REVERSO: EXTRACCIÓN DE LOS 13 DÍGITOS DEL OCR Y PRIMEROS 4 DÍGITOS (SECCIÓN)
+    async function extraerTextoReverso() {
+      if (!archivoFotoReverso) {
+        alert("Por favor carga o toma primero la foto del REVERSO.");
+        return;
+      }
+      const status = document.getElementById('status-reverso');
+      status.innerText = "⏳ Leyendo OCR de 13 dígitos y Sección...";
+      status.style.display = 'block';
+
+      try {
+        const worker = await Tesseract.createWorker('spa');
+        const ret = await worker.recognize(archivoFotoReverso);
+        await worker.terminate();
+
+        const texto = ret.data.text.toUpperCase();
+
+        const patronChevron13 = /(?:<<|«|<{1,2})\s*(\d{13})\b/;
+        const matchChevron = texto.match(patronChevron13);
+
+        let ocrCompleto = null;
+
+        if (matchChevron && matchChevron[1]) {
+          ocrCompleto = matchChevron[1];
+        } else {
+          // Búsqueda alternativa por bloque directo de 13 dígitos
+          const match13 = texto.match(/\b(\d{13})\b/);
+          if (match13 && match13[1]) {
+            ocrCompleto = match13[1];
+          }
+        }
+
+        if (ocrCompleto) {
+          const seccionExtraida = ocrCompleto.substring(0, 4);
+          
+          document.getElementById('ocr_resultado').value = ocrCompleto;
+          document.getElementById('seccion_electoral').value = seccionExtraida;
+
+          alert(`✅ ¡Lectura exitosa desde el Reverso!\n\n• Código OCR (13 dígitos): ${ocrCompleto}\n• Sección Electoral (4 primeros dígitos): ${seccionExtraida}`);
+        } else {
+          alert("⚠️ No se identificaron los 13 dígitos tras '<<'. Te recomendamos usar la herramienta de recorte e incluir solo la franja con el texto del OCR.");
+        }
+      } catch (e) {
+        alert("Error al ejecutar OCR del Reverso: " + e.message);
+      } finally {
+        status.style.display = 'none';
+        status.innerText = "⏳ Procesando imagen...";
+      }
+    }
+
+    // 2. ESCANEO DEL FRENTE: DETECCIÓN OPCIONAL DE SECCIÓN ELECTORAL
     async function extraerTextoFrente() {
       if (!archivoFotoFrente) {
-        alert("Por favor selecciona, toma o recorta primero la foto del FRENTE.");
+        alert("Por favor carga o toma primero la foto del FRENTE.");
         return;
       }
       const status = document.getElementById('status-frente');
-      status.innerText = "⏳ Analizando Sección Electoral...";
+      status.innerText = "⏳ Analizando Sección Electoral en Frente...";
       status.style.display = 'block';
 
       try {
@@ -615,27 +672,24 @@
         let seccionEncontrada = null;
         const words = ret.data.words || [];
 
-        // Estrategia 1: Búsqueda por cercanía de la palabra SECCIÓN (arriba, al lado o abajo)
+        // Coordenadas espaciales cerca de SECCIÓN
         const palabraSeccion = words.find(w => /SECCI[OÓ0]N|SECC/i.test(w.text));
 
         if (palabraSeccion) {
           const secX = (palabraSeccion.bbox.x0 + palabraSeccion.bbox.x1) / 2;
-          const secY = (palabraSeccion.bbox.y0 + palabraSeccion.bbox.y1) / 2;
+          const secY = palabraSeccion.bbox.y1;
 
-          // Filtrar números de 3 a 4 dígitos cercanos en el plano
           let candidatos = words.filter(w => {
             const num = w.text.replace(/\D/g, '');
             const esNumeroValido = num.length >= 3 && num.length <= 4;
-            const centroX = (w.bbox.x0 + w.bbox.x1) / 2;
-            const centroY = (w.bbox.y0 + w.bbox.y1) / 2;
-            const dist = Math.hypot(centroX - secX, centroY - secY);
-            return esNumeroValido && dist < 250; // radio de cercanía
+            const estaDebajo = w.bbox.y0 >= (secY - 5);
+            return esNumeroValido && estaDebajo;
           });
 
           candidatos.sort((a, b) => {
-            const distA = Math.hypot(((a.bbox.x0+a.bbox.x1)/2) - secX, ((a.bbox.y0+a.bbox.y1)/2) - secY);
-            const distB = Math.hypot(((b.bbox.x0+b.bbox.x1)/2) - secX, ((b.bbox.y0+b.bbox.y1)/2) - secY);
-            return distA - distB;
+            const centroXA = (a.bbox.x0 + a.bbox.x1) / 2;
+            const centroXB = (b.bbox.x0 + b.bbox.x1) / 2;
+            return Math.abs(centroXA - secX) - Math.abs(centroXB - secX);
           });
 
           if (candidatos.length > 0) {
@@ -643,7 +697,6 @@
           }
         }
 
-        // Estrategia 2: Fallback por Expresión Regular
         if (!seccionEncontrada) {
           let textoLimpio = ret.data.text.toUpperCase();
           textoLimpio = textoLimpio.replace(/\d{2}[\/\.-]\d{2}[\/\.-]\d{4}/g, '');
@@ -658,60 +711,12 @@
 
         if (seccionEncontrada) {
           document.getElementById('seccion_electoral').value = seccionEncontrada;
-          alert(`✅ ¡Sección Electoral detectada!: ${seccionEncontrada}`);
+          alert(`✅ ¡Sección Electoral detectada en Frente!: ${seccionEncontrada}`);
         } else {
-          alert("⚠️ No se identificó la sección electoral en el Frente. Si escaneas el Reverso, se extraerá automáticamente de los primeros 4 dígitos del código OCR.");
+          alert("⚠️ No se identificó la sección en el frente. Prueba recortando el área de la palabra SECCIÓN o realiza el escaneo con la foto del reverso.");
         }
       } catch (e) {
         alert("Error al ejecutar OCR del Frente: " + e.message);
-      } finally {
-        status.style.display = 'none';
-        status.innerText = "⏳ Procesando imagen...";
-      }
-    }
-
-    // 2. ESCANEO DEL REVERSO: EXTRACCIÓN DE 13 DÍGITOS Y PRIMEROS 4 DÍGITOS PARA SECCIÓN
-    async function extraerTextoReverso() {
-      if (!archivoFotoReverso) {
-        alert("Por favor selecciona, toma o recorta primero la foto del REVERSO.");
-        return;
-      }
-      const status = document.getElementById('status-reverso');
-      status.innerText = "⏳ Buscando los 13 dígitos del OCR...";
-      status.style.display = 'block';
-
-      try {
-        const worker = await Tesseract.createWorker('spa');
-        const ret = await worker.recognize(archivoFotoReverso);
-        await worker.terminate();
-
-        const texto = ret.data.text.toUpperCase();
-
-        // Buscar patrón tras << o cualquier secuencia limpia de 13 dígitos
-        const patronChevron13 = /(?:<<|«|<{1,2})\s*(\d{13})\b/;
-        const matchChevron = texto.match(patronChevron13);
-
-        let ocr13 = null;
-        if (matchChevron && matchChevron[1]) {
-          ocr13 = matchChevron[1];
-        } else {
-          const matchAislado = texto.match(/\b(\d{13})\b/);
-          if (matchAislado) ocr13 = matchAislado[1];
-        }
-
-        if (ocr13) {
-          document.getElementById('ocr_resultado').value = ocr13;
-
-          // EXTRAER SECCIÓN ELECTORAL: Los primeros 4 dígitos corresponden a la Sección Electoral
-          const seccionDesdeOCR = ocr13.substring(0, 4);
-          document.getElementById('seccion_electoral').value = seccionDesdeOCR;
-
-          alert(`✅ ¡Código OCR Capturado!: ${ocr13}\n🗳️ Sección Electoral obtenida automáticamente (primeros 4 dígitos): ${seccionDesdeOCR}`);
-        } else {
-          alert("⚠️ No se detectaron los 13 dígitos exactos. Te recomendamos ingresarlos de manera manual.");
-        }
-      } catch (e) {
-        alert("Error al ejecutar OCR del Reverso: " + e.message);
       } finally {
         status.style.display = 'none';
         status.innerText = "⏳ Procesando imagen...";
@@ -742,151 +747,179 @@
       archivoFotoReverso = null;
       document.getElementById('preview-container-frente').style.display = 'none';
       document.getElementById('preview-container-reverso').style.display = 'none';
-    }
-
-    function centrarGPS() {
-      if (!navigator.geolocation) {
-        alert("Tu navegador no soporta Geolocalización.");
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        position => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          map.setView([lat, lng], 17);
-          
-          if (gpsMarker) map.removeLayer(gpsMarker);
-          gpsMarker = L.circleMarker([lat, lng], { radius: 9, fillColor: '#007bff', color: '#fff', weight: 3, opacity: 1, fillOpacity: 0.9 }).addTo(map);
-          gpsMarker.bindPopup("📍 Tu ubicación actual").openPopup();
-        },
-        err => alert("No se pudo obtener tu ubicación GPS: " + err.message),
-        { enableHighAccuracy: true }
-      );
-    }
-
-    async function guardarRegistro() {
-      const brigadista = document.getElementById('brigadista').value.trim();
-      const nombre = document.getElementById('nombre_persona').value.trim() || 'No proporcionado';
-      const telefono = document.getElementById('telefono').value.trim();
-      const seccion = document.getElementById('seccion_electoral').value.trim();
-      const ocr = document.getElementById('ocr_resultado').value.trim();
-      const simpatizante = document.getElementById('simpatizante').value === 'true';
-      const entrego_ine = document.getElementById('entrego_ine').value === 'true';
-      const registro_plataforma = document.getElementById('registro_plataforma').value === 'true';
-      const razon_no_registro = document.getElementById('razon_no_registro').value.trim();
-      const direccion = document.getElementById('direccion').value.trim();
-      const observaciones = document.getElementById('observaciones').value.trim();
-      const lat = parseFloat(document.getElementById('lat').value);
-      const lng = parseFloat(document.getElementById('lng').value);
-
-      if (!brigadista) {
-        alert("⚠️ El nombre del Brigadista es obligatorio.");
-        return;
-      }
-
-      if (telefono.length > 0 && telefono.length !== 10) {
-        alert("⚠️ El teléfono debe ser de exactamente 10 dígitos.");
-        return;
-      }
-
-      const nuevoRegistro = {
-        brigadista,
-        nombre_persona: nombre,
-        telefono,
-        seccion_electoral: seccion,
-        codigo_ocr: ocr,
-        simpatizante,
-        entrego_ine,
-        registro_plataforma,
-        razon_no_registro,
-        direccion,
-        observaciones,
-        lat,
-        lng,
-        fecha: new Date().toISOString()
-      };
-
-      if (_supabase) {
-        try {
-          const { error } = await _supabase.from('visitas_casas').insert([nuevoRegistro]);
-          if (error) console.error("Error al guardar en Supabase:", error);
-        } catch (e) {
-          console.warn("No se pudo enviar a Supabase:", e);
-        }
-      }
-
-      registrosCargados.push(nuevoRegistro);
-      agregarMarcadorCasa(nuevoRegistro);
-      cerrarModal();
-      alert("✅ Visita registrada correctamente.");
-    }
-
-    function agregarMarcadorCasa(reg) {
-      const color = reg.simpatizante ? '#28a745' : '#ffc107';
-      const marker = L.circleMarker([reg.lat, reg.lng], {
-        radius: 7,
-        fillColor: color,
-        color: '#000',
-        weight: 1,
-        fillOpacity: 0.9
-      }).addTo(capaCasas);
-
-      let pop = `<b>Brigadista:</b> ${reg.brigadista}<br>`;
-      pop += `<b>Contacto:</b> ${reg.nombre_persona}<br>`;
-      if (reg.seccion_electoral) pop += `<b>Sección:</b> ${reg.seccion_electoral}<br>`;
-      if (reg.codigo_ocr) pop += `<b>OCR:</b> ${reg.codigo_ocr}<br>`;
-      pop += `<b>Simpatizante:</b> ${reg.simpatizante ? 'Sí' : 'No'}<br>`;
-      if (reg.direccion) pop += `<b>Dirección:</b> ${reg.direccion}`;
-
-      marker.bindPopup(pop);
+      document.getElementById('foto_ine_frente').value = '';
+      document.getElementById('foto_ine_reverso').value = '';
+      document.getElementById('seccion_electoral').value = '';
+      document.getElementById('ocr_resultado').value = '';
+      document.getElementById('observaciones').value = '';
     }
 
     function abrirModalTabla() {
-      actualizarTabla();
       document.getElementById('modalTabla').style.display = 'flex';
+      renderizarTablaYTotales();
     }
 
     function cerrarModalTabla() {
       document.getElementById('modalTabla').style.display = 'none';
     }
 
-    function actualizarTabla() {
+    async function guardarRegistro() {
+      const brigadista = document.getElementById('brigadista').value.trim();
+      const telefono = document.getElementById('telefono').value.trim();
+
+      if (!brigadista) {
+        alert("Por favor ingresa el nombre del brigadista.");
+        return;
+      }
+
+      if (telefono.length > 0 && telefono.length !== 10) {
+        alert("El número telefónico debe ser de 10 dígitos exactamente.");
+        return;
+      }
+
+      let fotoUrl = null;
+      let archivoASubir = archivoFotoFrente || archivoFotoReverso;
+
+      if (_supabase && archivoASubir) {
+        try {
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+          const { data: uploadData, error: uploadError } = await _supabase.storage
+            .from('fotos-ine')
+            .upload(fileName, archivoASubir);
+
+          if (!uploadError) {
+            const { data: publicUrlData } = _supabase.storage.from('fotos-ine').getPublicUrl(fileName);
+            fotoUrl = publicUrlData.publicUrl;
+          }
+        } catch (e) {
+          console.error("Error al subir imagen:", e);
+        }
+      }
+
+      const nombrePersona = document.getElementById('nombre_persona').value.trim() || 'No proporcionado';
+      const seccion = document.getElementById('seccion_electoral').value.trim() || null;
+      const ocrDato = document.getElementById('ocr_resultado').value.trim() || null;
+      const simpatizante = document.getElementById('simpatizante').value === 'true';
+      const entregoIne = document.getElementById('entrego_ine').value === 'true';
+      const registroPlataforma = document.getElementById('registro_plataforma').value === 'true';
+      const razonNoRegistro = registroPlataforma ? 'N/A' : (document.getElementById('razon_no_registro').value.trim() || 'No especificado');
+      const direccion = document.getElementById('direccion').value.trim() || 'No especificada';
+      const observaciones = document.getElementById('observaciones').value.trim();
+
+      const lat = parseFloat(document.getElementById('lat').value);
+      const lng = parseFloat(document.getElementById('lng').value);
+
+      if (_supabase) {
+        const { error } = await _supabase.from('simpatizantes').insert([{
+          brigadista_nombre: brigadista,
+          nombre_persona: nombrePersona,
+          seccion_electoral: seccion,
+          ine_clave_elector: ocrDato,
+          telefono: telefono || null,
+          es_simpatizante: simpatizante,
+          entrego_ine: entregoIne,
+          registro_plataforma: registroPlataforma,
+          razon_no_registro: razonNoRegistro,
+          foto_ine_url: fotoUrl,
+          direccion: direccion,
+          observaciones: observaciones,
+          lat: lat,
+          lng: lng
+        }]);
+
+        if (error) {
+          alert("Error al guardar en Supabase: " + error.message);
+        } else {
+          alert("¡Registro guardado exitosamente!");
+          cerrarModal();
+          cargarCasasGuardadas();
+        }
+      } else {
+        alert("Atención: Conexión con Supabase no disponible.");
+      }
+    }
+
+    async function cargarCasasGuardadas() {
+      capaCasas.clearLayers();
+      if (!_supabase) return;
+
+      const { data, error } = await _supabase.from('simpatizantes').select('*').order('id', { ascending: false });
+      if (!error && data) {
+        registrosCargados = data;
+        data.forEach(casa => {
+          const colorIcono = casa.es_simpatizante ? '#27ae60' : '#f39c12';
+          
+          let popupContent = `
+            <b>Brigadista:</b> ${casa.brigadista_nombre}<br>
+            <b>Contacto:</b> ${casa.nombre_persona || 'No proporcionado'}<br>
+            <b>Sección Electoral:</b> ${casa.seccion_electoral || 'N/A'}<br>
+            <b>Código OCR (13 dig):</b> ${casa.ine_clave_elector || 'N/A'}<br>
+            <b>Teléfono:</b> ${casa.telefono || 'N/A'}<br>
+            <b>Simpatizante:</b> ${casa.es_simpatizante ? 'Sí' : 'No'}<br>
+            <b>Entregó INE:</b> ${casa.entrego_ine ? 'Sí' : 'No'}<br>
+            <b>Plataforma:</b> ${casa.registro_plataforma ? 'Sí' : 'No (' + (casa.razon_no_registro || 'N/A') + ')'}<br>
+            <b>Dirección:</b> ${casa.direccion || 'S/N'}<br>
+          `;
+
+          if (casa.observaciones) {
+            popupContent += `<b>Notas:</b> ${casa.observaciones}<br>`;
+          }
+
+          if (casa.foto_ine_url) {
+            popupContent += `<br><a href="${casa.foto_ine_url}" target="_blank"><img src="${casa.foto_ine_url}" style="width:100%; border-radius:4px; max-height:100px; object-fit:cover;"></a>`;
+          }
+
+          const marcador = L.circleMarker([casa.lat, casa.lng], {
+            radius: 8,
+            fillColor: colorIcono,
+            color: '#000',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.85
+          }).bindPopup(popupContent);
+
+          capaCasas.addLayer(marcador);
+        });
+      }
+    }
+    cargarCasasGuardadas();
+
+    function renderizarTablaYTotales() {
       const cuerpo = document.getElementById('cuerpoTabla');
       cuerpo.innerHTML = '';
 
-      let simpas = 0;
-      let ines = 0;
+      let countTotal = registrosCargados.length;
+      let countSimpa = 0;
+      let countIne = 0;
 
-      registrosCargados.forEach(r => {
-        if (r.simpatizante) simpas++;
-        if (r.entrego_ine) ines++;
+      registrosCargados.forEach(item => {
+        if (item.es_simpatizante) countSimpa++;
+        if (item.entrego_ine) countIne++;
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${r.brigadista || ''}</td>
-          <td>${r.nombre_persona || ''}</td>
-          <td><b>${r.seccion_electoral || ''}</b></td>
-          <td>${r.codigo_ocr || ''}</td>
-          <td>${r.telefono || ''}</td>
-          <td><span class="${r.simpatizante ? 'badge-simpa' : 'badge-nosimpa'}">${r.simpatizante ? 'Simpatizante' : 'No / Indeciso'}</span></td>
-          <td>${r.entrego_ine ? 'Sí' : 'No'}</td>
-          <td>${r.registro_plataforma ? 'Sí' : 'No'}</td>
-          <td>${r.direccion || ''}</td>
+          <td>${item.brigadista_nombre}</td>
+          <td>${item.nombre_persona || 'N/A'}</td>
+          <td><b>${item.seccion_electoral || 'N/A'}</b></td>
+          <td><code style="color:#0d6efd;">${item.ine_clave_elector || 'N/A'}</code></td>
+          <td>${item.telefono || 'N/A'}</td>
+          <td><span class="${item.es_simpatizante ? 'badge-simpa' : 'badge-nosimpa'}">${item.es_simpatizante ? 'Sí' : 'No'}</span></td>
+          <td>${item.entrego_ine ? 'Sí' : 'No'}</td>
+          <td>${item.registro_plataforma ? 'Sí' : 'No'}</td>
+          <td>${item.direccion || 'S/N'}</td>
         `;
         cuerpo.appendChild(tr);
       });
 
-      document.getElementById('kpi-total').innerText = registrosCargados.length;
-      document.getElementById('kpi-simpatizantes').innerText = simpas;
-      document.getElementById('kpi-ine').innerText = ines;
+      document.getElementById('kpi-total').innerText = countTotal;
+      document.getElementById('kpi-simpatizantes').innerText = countSimpa;
+      document.getElementById('kpi-ine').innerText = countIne;
     }
 
     function filtrarTabla() {
-      const q = document.getElementById('buscadorTabla').value.toLowerCase();
-      const filas = document.querySelectorAll('#cuerpoTabla tr');
-      filas.forEach(f => {
-        const txt = f.innerText.toLowerCase();
-        f.style.display = txt.includes(q) ? '' : 'none';
+      const texto = document.getElementById('buscadorTabla').value.toLowerCase();
+      document.querySelectorAll('#cuerpoTabla tr').forEach(fila => {
+        fila.style.display = fila.innerText.toLowerCase().includes(texto) ? '' : 'none';
       });
     }
 
@@ -895,17 +928,63 @@
         alert("No hay registros para exportar.");
         return;
       }
-      let csv = "Brigadista,Contacto,Seccion,OCR_13_Dig,Telefono,Simpatizante,Entrego_INE,Plataforma,Razon_No_Registro,Direccion,Observaciones,Lat,Lng,Fecha\n";
-      registrosCargados.forEach(r => {
-        csv += `"${r.brigadista}","${r.nombre_persona}","${r.seccion_electoral || ''}","${r.codigo_ocr || ''}","${r.telefono}","${r.simpatizante}","${r.entrego_ine}","${r.registro_plataforma}","${r.razon_no_registro || ''}","${r.direccion || ''}","${r.observaciones || ''}",${r.lat},${r.lng},"${r.fecha}"\n`;
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "ID,Brigadista,Nombre Ciudadano,Seccion Electoral,Codigo OCR (13 dig),Telefono,Es Simpatizante,Entrego INE,Registro Plataforma,Razon No Registro,Direccion,Observaciones,Latitud,Longitud\n";
+
+      registrosCargados.forEach(row => {
+        const fila = [
+          row.id,
+          `"${row.brigadista_nombre || ''}"`,
+          `"${row.nombre_persona || ''}"`,
+          `"${row.seccion_electoral || ''}"`,
+          `"${row.ine_clave_elector || ''}"`,
+          `"${row.telefono || ''}"`,
+          row.es_simpatizante ? "Si" : "No",
+          row.entrego_ine ? "Si" : "No",
+          row.registro_plataforma ? "Si" : "No",
+          `"${row.razon_no_registro || ''}"`,
+          `"${row.direccion || ''}"`,
+          `"${(row.observaciones || '').replace(/\n/g, ' ')}"`,
+          row.lat,
+          row.lng
+        ].join(",");
+        csvContent += fila + "\n";
       });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `registros_campo_${new Date().toISOString().slice(0,10)}.csv`;
-      a.click();
+
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csvContent));
+      link.setAttribute("download", `Registros_Iztacalco_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
+
+    function centrarGPS() {
+      map.locate({setView: true, maxZoom: 18, enableHighAccuracy: true});
+    }
+
+    map.on('locationfound', function(e) {
+      if (gpsMarker) map.removeLayer(gpsMarker);
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+
+      const popupHtml = `
+        <div style="text-align:center;">
+          <b>📍 ¡Estás aquí!</b><br>
+          <span style="font-size:11px; color:#555;">Ubicación GPS precisa</span><br><br>
+          <button class="btn-registrar-aqui" onclick="abrirModalConCoordenadas(${lat}, ${lng})">
+            ➕ Registrar en mi ubicación actual
+          </button>
+        </div>
+      `;
+
+      L.circle(e.latlng, e.accuracy / 2, { color: '#007bff', fillColor: '#007bff', fillOpacity: 0.15 }).addTo(map);
+      gpsMarker = L.marker(e.latlng).addTo(map).bindPopup(popupHtml).openPopup();
+    });
+
+    map.on('locationerror', function() {
+      alert("No se pudo obtener la ubicación GPS.");
+    });
   </script>
 </body>
 </html>
