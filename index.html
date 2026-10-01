@@ -708,7 +708,7 @@
 
           alert(`✅ ¡Código OCR Capturado!: ${ocr13}\n🗳️ Sección Electoral obtenida automáticamente (primeros 4 dígitos): ${seccionDesdeOCR}`);
         } else {
-          alert("⚠️ No se detectaron los 13 dígitos exactos. Te recomendamos recortar la imagen enfocando únicamente la franja inferior del reverso.");
+          alert("⚠️ No se detectaron los 13 dígitos exactos. Te recomendamos ingresarlos de manera manual.");
         }
       } catch (e) {
         alert("Error al ejecutar OCR del Reverso: " + e.message);
