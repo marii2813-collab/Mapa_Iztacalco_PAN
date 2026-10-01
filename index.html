@@ -160,7 +160,7 @@
 
       <!-- CASILLA DEDICADA PARA CÓDIGO OCR REVERSO (13 DÍGITOS) -->
       <div class="form-group" style="background:#eef6ff; padding:10px; border-radius:8px; border:1px solid #b6d4fe;">
-        <label style="color:#084298;">🆔 Código OCR  (13 Dígitos tras <<)</label>
+        <label style="color:#084298;">🆔 Código OCR (13 Dígitos tras <<)</label>
         <input type="text" id="ocr_resultado" placeholder="Se llena automáticamente al escanear el Reverso (Ej: 1234567890123)" style="background:#fff; font-weight:bold; color:#0d6efd;">
       </div>
 
@@ -193,10 +193,10 @@
         <input type="text" id="razon_no_registro" placeholder="Ej: No tiene smartphone, desconfianza, etc.">
       </div>
 
-      <!-- Sección Frente de la INE -->
+      <!-- Sección Frente de la INE: Con soporte para tomar foto directamente con la cámara (capture="environment") -->
       <div class="form-group">
         <label>📷 Fotografía del Frente de INE</label>
-        <input type="file" id="foto_ine_frente" accept="image/*,.heic,.heif" onchange="procesarFotoFrente(event)">
+        <input type="file" id="foto_ine_frente" accept="image/*" capture="environment" onchange="procesarFotoFrente(event)">
         <div id="status-frente" class="loading-status">⏳ Procesando imagen...</div>
         <button type="button" class="btn-ocr" onclick="extraerTextoFrente()">🔍 Escanear Sección Electoral (Frente)</button>
         <div id="preview-container-frente" style="display:none; margin-top:8px; text-align:center;">
@@ -204,10 +204,10 @@
         </div>
       </div>
 
-      <!-- Sección Reverso de la INE -->
+      <!-- Sección Reverso de la INE: Con soporte para tomar foto directamente con la cámara (capture="environment") -->
       <div class="form-group">
         <label>📷 Fotografía del Reverso de INE</label>
-        <input type="file" id="foto_ine_reverso" accept="image/*,.heic,.heif" onchange="procesarFotoReverso(event)">
+        <input type="file" id="foto_ine_reverso" accept="image/*" capture="environment" onchange="procesarFotoReverso(event)">
         <div id="status-reverso" class="loading-status">⏳ Procesando imagen...</div>
         <button type="button" class="btn-ocr" onclick="extraerTextoReverso()">🔍 Escanear Código OCR (Reverso)</button>
         <div id="preview-container-reverso" style="display:none; margin-top:8px; text-align:center;">
@@ -539,7 +539,7 @@
       }
     }
 
-    // 1. ESCANEO DEL FRENTE: EXTRACCIÓN ESTRICTA DE SECCIÓN (SÓLO NÚMEROS JUNTO/DEBAJO DE "SECCIÓN")
+    // 1. ESCANEO DEL FRENTE: EXTRACCIÓN PERMISIVA DE SECCIÓN (INCLUYE NÚMEROS EN LA LÍNEA DE ABAJO)
     async function extraerTextoFrente() {
       if (!archivoFotoFrente) {
         alert("Por favor selecciona o toma primero la foto del FRENTE.");
@@ -556,17 +556,17 @@
 
         const texto = ret.data.text.toUpperCase();
         
-        // Expresión regular estricta:
-        // Exige encontrar la palabra SECCION/SECCIÓN/SECC/SEC y toma únicamente los 3 o 4 dígitos
-        // que aparezcan inmediatamente después o en la línea siguiente (hasta 15 caracteres no numéricos entre medio).
-        const patronSeccionEstricto = /(?:SECCI[OÓ0]N|SECC|SEC)[^\d\n\r]{0,15}(\d{3,4})\b/i;
+        // Expresión regular ajustada:
+        // Permite saltos de línea (\n, \r) y hasta 30 caracteres entre la palabra SECCION/SECCIÓN/SECC
+        // y el número de 3 o 4 dígitos ubicado debajo o al lado.
+        const patronSeccionEstricto = /(?:SECCI[OÓ0]N|SECC|SEC)[\s\S]{0,30}?(\d{3,4})\b/i;
         const matchSeccion = texto.match(patronSeccionEstricto);
 
         if (matchSeccion && matchSeccion[1]) {
           document.getElementById('seccion_electoral').value = matchSeccion[1];
           alert(`✅ ¡Sección Electoral detectada!: ${matchSeccion[1]}`);
         } else {
-          alert("❌ No se encontró el número de Sección junto a la palabra 'SECCIÓN'. Verifique la imagen o ingréselo manualmente.");
+          alert("❌ No se encontró el número de Sección Electoral. Verifique la imagen o ingréselo manualmente.");
         }
       } catch (e) {
         alert("Error al ejecutar OCR del Frente: " + e.message);
@@ -593,9 +593,7 @@
 
         const texto = ret.data.text.toUpperCase();
 
-        // Expresión regular estricta:
-        // Captura ÚNICAMENTE los 13 dígitos que siguen inmediatamente a '<<' (o variantes OCR como '«', '<')
-        // Ignora por completo IDMEX y secuencias numéricas sueltas.
+        // Expresión regular estricta: Captura los 13 dígitos posteriores a <<, « o <
         const patronChevron13 = /(?:<<|«|<{1,2})\s*(\d{13})\b/;
         const matchChevron = texto.match(patronChevron13);
 
@@ -703,8 +701,8 @@
         const { error } = await _supabase.from('simpatizantes').insert([{
           brigadista_nombre: brigadista,
           nombre_persona: nombrePersona,
-          seccion_electoral: seccion,            // Mapeado a columna SQL seccion_electoral
-          ine_clave_elector: ocrDato,           // Mapeado a columna SQL ine_clave_elector
+          seccion_electoral: seccion,
+          ine_clave_elector: ocrDato,
           telefono: telefono || null,
           es_simpatizante: simpatizante,
           entrego_ine: entregoIne,
