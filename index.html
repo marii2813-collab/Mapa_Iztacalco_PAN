@@ -61,11 +61,8 @@
 
     .btn-submit { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 10px; cursor: pointer; }
     .btn-close { background: #6c757d; color: white; width: 100%; padding: 10px; border: none; border-radius: 8px; margin-top: 8px; font-weight: bold; cursor: pointer; }
-    .btn-ocr { background: #17a2b8; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; margin-top: 4px; cursor: pointer; }
+    .btn-ocr { background: #17a2b8; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; margin-top: 4px; cursor: pointer; display: inline-block; }
     .btn-export { background: #17a2b8; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-bottom: 12px; }
-
-    #preview-container { display: none; margin-top: 8px; text-align: center; }
-    #preview-img { max-width: 100%; max-height: 150px; border-radius: 8px; border: 1px solid #ddd; }
 
     /* Estilo compacto para etiquetas de Secciones */
     .etiqueta-seccion {
@@ -184,12 +181,23 @@
         <input type="text" id="razon_no_registro" placeholder="Ej: No tiene smartphone, desconfianza, etc.">
       </div>
 
+      <!-- Sección Frente de la INE -->
       <div class="form-group">
-        <label>Fotografía de INE (Opcional)</label>
-        <input type="file" id="foto_ine" accept="image/*" capture="environment" onchange="procesarFoto(event)">
-        <button type="button" class="btn-ocr" onclick="extraerTextoOCR()">🔍 Escanear texto de INE (OCR)</button>
-        <div id="preview-container">
-          <img id="preview-img" src="" alt="Vista previa">
+        <label>Fotografía del Frente de INE (CURP, Clave, Dirección)</label>
+        <input type="file" id="foto_ine_frente" accept="image/*" capture="environment" onchange="procesarFotoFrente(event)">
+        <button type="button" class="btn-ocr" onclick="extraerTextoFrente()">🔍 Escanear Frente (OCR)</button>
+        <div id="preview-container-frente" style="display:none; margin-top:8px; text-align:center;">
+          <img id="preview-img-frente" src="" alt="Vista previa frente" style="max-width:100%; max-height:120px; border-radius:8px; border: 1px solid #ddd;">
+        </div>
+      </div>
+
+      <!-- Sección Reverso de la INE -->
+      <div class="form-group">
+        <label>Fotografía del Reverso de INE (OCR / Código de barras)</label>
+        <input type="file" id="foto_ine_reverso" accept="image/*" capture="environment" onchange="procesarFotoReverso(event)">
+        <button type="button" class="btn-ocr" onclick="extraerTextoReverso()">🔍 Escanear Reverso (OCR)</button>
+        <div id="preview-container-reverso" style="display:none; margin-top:8px; text-align:center;">
+          <img id="preview-img-reverso" src="" alt="Vista previa reverso" style="max-width:100%; max-height:120px; border-radius:8px; border: 1px solid #ddd;">
         </div>
       </div>
 
@@ -266,7 +274,7 @@
     // ==========================================
     // SEGURIDAD: CLAVE / NIP DE ACCESO
     // ==========================================
-    const NIP_AUTORIZADO = "ALP_2026"; // <-- PUEDES CAMBIAR ESTA CLAVE POR LA QUE PREFIERAS
+    const NIP_AUTORIZADO = "ALP_2026";
 
     function verificarAccesoAutomatico() {
       let claveGuardada = localStorage.getItem("nip_brigada");
@@ -299,7 +307,6 @@
       }
     }
 
-    // Ejecutar al cargar la página
     verificarAccesoAutomatico();
 
     // Configuración de Supabase
@@ -440,39 +447,79 @@
       }
     }
 
-    let archivoFotoSeleccionado = null;
-    function procesarFoto(event) {
-      archivoFotoSeleccionado = event.target.files[0];
-      if (archivoFotoSeleccionado) {
+    // ==========================================
+    // MANEJO DE FOTOS Y OCR (FRENTE Y REVERSO)
+    // ==========================================
+    let archivoFotoFrente = null;
+    let archivoFotoReverso = null;
+
+    function procesarFotoFrente(event) {
+      archivoFotoFrente = event.target.files[0];
+      if (archivoFotoFrente) {
         const reader = new FileReader();
         reader.onload = function(e) {
-          document.getElementById('preview-img').src = e.target.result;
-          document.getElementById('preview-container').style.display = 'block';
+          document.getElementById('preview-img-frente').src = e.target.result;
+          document.getElementById('preview-container-frente').style.display = 'block';
         };
-        reader.readAsDataURL(archivoFotoSeleccionado);
+        reader.readAsDataURL(archivoFotoFrente);
       }
     }
 
-    async function extraerTextoOCR() {
-      if (!archivoFotoSeleccionado) {
-        alert("Por favor selecciona o toma una foto primero.");
+    function procesarFotoReverso(event) {
+      archivoFotoReverso = event.target.files[0];
+      if (archivoFotoReverso) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('preview-img-reverso').src = e.target.result;
+          document.getElementById('preview-container-reverso').style.display = 'block';
+        };
+        reader.readAsDataURL(archivoFotoReverso);
+      }
+    }
+
+    async function extraerTextoFrente() {
+      if (!archivoFotoFrente) {
+        alert("Por favor selecciona o toma la foto del FRENTE de la INE primero.");
         return;
       }
-      alert("Procesando imagen con OCR... Esto puede tomar unos segundos.");
+      alert("Analizando frente de la INE con OCR...");
       try {
         const worker = await Tesseract.createWorker('spa');
-        const ret = await worker.recognize(archivoFotoSeleccionado);
+        const ret = await worker.recognize(archivoFotoFrente);
         await worker.terminate();
         
-        const textDetectado = ret.data.text.trim();
-        if (textDetectado) {
-          document.getElementById('observaciones').value += `\n[OCR INE]: ${textDetectado.substring(0, 150)}...`;
-          alert("¡Lectura OCR completada! Se añadió el texto en observaciones.");
+        const texto = ret.data.text;
+        if (texto) {
+          document.getElementById('observaciones').value += `\n[OCR FRENTE]: ${texto.substring(0, 200)}...`;
+          alert("¡Lectura del frente completada con éxito!");
         } else {
-          alert("No se pudo extraer texto claro de la imagen.");
+          alert("No se pudo extraer texto claro del frente.");
         }
       } catch (e) {
-        alert("Error procesando OCR: " + e.message);
+        alert("Error procesando OCR del frente: " + e.message);
+      }
+    }
+
+    async function extraerTextoReverso() {
+      if (!archivoFotoReverso) {
+        alert("Por favor selecciona o toma la foto del REVERSO de la INE primero.");
+        return;
+      }
+      alert("Analizando reverso y código OCR...");
+      try {
+        const worker = await Tesseract.createWorker('spa');
+        const ret = await worker.recognize(archivoFotoReverso);
+        await worker.terminate();
+        
+        const texto = ret.data.text;
+        if (texto) {
+          document.getElementById('observaciones').value += `\n[OCR REVERSO]: ${texto.substring(0, 150)}...`;
+          alert("¡Lectura del reverso completada!");
+        } else {
+          alert("No se pudo extraer el OCR del reverso.");
+        }
+      } catch (e) {
+        alert("Error procesando OCR del reverso: " + e.message);
       }
     }
 
@@ -496,8 +543,12 @@
     function cerrarModal() {
       document.getElementById('modalForm').style.display = 'none';
       if (clickMarker) map.removeLayer(clickMarker);
-      archivoFotoSeleccionado = null;
-      document.getElementById('preview-container').style.display = 'none';
+      archivoFotoFrente = null;
+      archivoFotoReverso = null;
+      document.getElementById('preview-container-frente').style.display = 'none';
+      document.getElementById('preview-container-reverso').style.display = 'none';
+      document.getElementById('foto_ine_frente').value = '';
+      document.getElementById('foto_ine_reverso').value = '';
     }
 
     function abrirModalTabla() {
@@ -556,9 +607,12 @@
 
       let fotoUrl = null;
 
-      if (_supabase && archivoFotoSeleccionado) {
+      // Subir archivo del frente de manera prioritaria si existe
+      let archivoASubir = archivoFotoFrente || archivoFotoReverso;
+
+      if (_supabase && archivoASubir) {
         try {
-          const fotoComprimida = await comprimirImagen(archivoFotoSeleccionado);
+          const fotoComprimida = await comprimirImagen(archivoASubir);
           const fileExt = 'jpg';
           const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
           
@@ -728,7 +782,6 @@
       document.body.removeChild(link);
     }
 
-    // Funcionalidad GPS mejorada
     function centrarGPS() {
       map.locate({setView: true, maxZoom: 18, enableHighAccuracy: true});
     }
