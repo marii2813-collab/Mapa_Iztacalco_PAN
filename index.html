@@ -12,8 +12,11 @@
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- Tesseract OCR para lectura de INE desde el navegador -->
+  <!-- Tesseract OCR para lectura de INE -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <!-- Librería para convertir formatos HEIC/HEIF (iPhone) a JPEG en tiempo real -->
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background: #f8f9fa; }
@@ -61,8 +64,11 @@
 
     .btn-submit { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 10px; cursor: pointer; }
     .btn-close { background: #6c757d; color: white; width: 100%; padding: 10px; border: none; border-radius: 8px; margin-top: 8px; font-weight: bold; cursor: pointer; }
-    .btn-ocr { background: #17a2b8; color: white; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; margin-top: 4px; cursor: pointer; display: inline-block; }
+    .btn-ocr { background: #17a2b8; color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-top: 6px; cursor: pointer; display: inline-block; font-weight: bold; }
     .btn-export { background: #17a2b8; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-bottom: 12px; }
+
+    /* Indicador de carga de procesamiento de imagen */
+    .loading-status { font-size: 12px; color: #007bff; font-weight: bold; margin-top: 4px; display: none; }
 
     /* Estilo compacto para etiquetas de Secciones */
     .etiqueta-seccion {
@@ -183,21 +189,23 @@
 
       <!-- Sección Frente de la INE -->
       <div class="form-group">
-        <label>Fotografía del Frente de INE (CURP, Clave, Dirección)</label>
-        <input type="file" id="foto_ine_frente" accept="image/*" capture="environment" onchange="procesarFotoFrente(event)">
+        <label>Fotografía del Frente de INE (Cámara o Galería - JPG, PNG, HEIC)</label>
+        <input type="file" id="foto_ine_frente" accept="image/*,.heic,.heif" onchange="procesarFotoFrente(event)">
+        <div id="status-frente" class="loading-status">⏳ Procesando imagen...</div>
         <button type="button" class="btn-ocr" onclick="extraerTextoFrente()">🔍 Escanear Frente (OCR)</button>
         <div id="preview-container-frente" style="display:none; margin-top:8px; text-align:center;">
-          <img id="preview-img-frente" src="" alt="Vista previa frente" style="max-width:100%; max-height:120px; border-radius:8px; border: 1px solid #ddd;">
+          <img id="preview-img-frente" src="" alt="Vista previa frente" style="max-width:100%; max-height:140px; border-radius:8px; border: 1px solid #ddd;">
         </div>
       </div>
 
       <!-- Sección Reverso de la INE -->
       <div class="form-group">
-        <label>Fotografía del Reverso de INE (OCR / Código de barras)</label>
-        <input type="file" id="foto_ine_reverso" accept="image/*" capture="environment" onchange="procesarFotoReverso(event)">
+        <label>Fotografía del Reverso de INE (Cámara o Galería - JPG, PNG, HEIC)</label>
+        <input type="file" id="foto_ine_reverso" accept="image/*,.heic,.heif" onchange="procesarFotoReverso(event)">
+        <div id="status-reverso" class="loading-status">⏳ Procesando imagen...</div>
         <button type="button" class="btn-ocr" onclick="extraerTextoReverso()">🔍 Escanear Reverso (OCR)</button>
         <div id="preview-container-reverso" style="display:none; margin-top:8px; text-align:center;">
-          <img id="preview-img-reverso" src="" alt="Vista previa reverso" style="max-width:100%; max-height:120px; border-radius:8px; border: 1px solid #ddd;">
+          <img id="preview-img-reverso" src="" alt="Vista previa reverso" style="max-width:100%; max-height:140px; border-radius:8px; border: 1px solid #ddd;">
         </div>
       </div>
 
@@ -208,7 +216,7 @@
 
       <div class="form-group">
         <label>Observaciones</label>
-        <textarea id="observaciones" rows="2" placeholder="Notas relevantes de la conversación"></textarea>
+        <textarea id="observaciones" rows="3" placeholder="Notas relevantes de la conversación u OCR"></textarea>
       </div>
 
       <input type="hidden" id="lat">
@@ -447,33 +455,110 @@
       }
     }
 
-    // ==========================================
-    // MANEJO DE FOTOS Y OCR (FRENTE Y REVERSO)
-    // ==========================================
+    // =========================================================================
+    // MANEJO DE FOTOS, FORMATOS MULTIPLE (HEIC, PNG, JPG) Y COMPRESIÓN / OCR
+    // =========================================================================
     let archivoFotoFrente = null;
     let archivoFotoReverso = null;
 
-    function procesarFotoFrente(event) {
-      archivoFotoFrente = event.target.files[0];
-      if (archivoFotoFrente) {
+    // Convierte archivos HEIC/HEIF de iPhones a JPEG estandarizado si es necesario
+    async function estandarizarImagen(archivo) {
+      if (!archivo) return null;
+      const nombreLower = archivo.name.toLowerCase();
+      const tipoLower = archivo.type.toLowerCase();
+
+      if (tipoLower.includes('heic') || tipoLower.includes('heif') || nombreLower.endsWith('.heic') || nombreLower.endsWith('.heif')) {
+        if (window.heic2any) {
+          try {
+            const blobConvertido = await window.heic2any({ blob: archivo, toType: 'image/jpeg', quality: 0.8 });
+            const blobFinal = Array.isArray(blobConvertido) ? blobConvertido[0] : blobConvertido;
+            return new File([blobFinal], archivo.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+          } catch (e) {
+            console.warn("No se pudo convertir HEIC con heic2any, intentando lectura directa:", e);
+          }
+        }
+      }
+      return archivo;
+    }
+
+    function comprimirImagen(archivo, calidad = 0.75, maxAncho = 1200) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(archivo);
+        reader.onload = function(event) {
+          const img = new Image();
+          img.src = event.target.result;
+          img.onload = function() {
+            const canvas = document.createElement('canvas');
+            let ancho = img.width;
+            let alto = img.height;
+
+            if (ancho > maxAncho) {
+              alto = Math.round((alto * maxAncho) / ancho);
+              ancho = maxAncho;
+            }
+
+            canvas.width = ancho;
+            canvas.height = alto;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, ancho, alto);
+
+            canvas.toBlob((blob) => {
+              const archivoEstandar = new File([blob], "captura_ine.jpg", { type: 'image/jpeg' });
+              resolve(archivoEstandar);
+            }, 'image/jpeg', calidad);
+          };
+          img.onerror = err => reject(err);
+        };
+        reader.onerror = error => reject(error);
+      });
+    }
+
+    async function procesarFotoFrente(event) {
+      const fileRaw = event.target.files[0];
+      if (!fileRaw) return;
+
+      const status = document.getElementById('status-frente');
+      status.style.display = 'block';
+
+      try {
+        const fileEstandar = await estandarizarImagen(fileRaw);
+        archivoFotoFrente = await comprimirImagen(fileEstandar);
+
         const reader = new FileReader();
         reader.onload = function(e) {
           document.getElementById('preview-img-frente').src = e.target.result;
           document.getElementById('preview-container-frente').style.display = 'block';
+          status.style.display = 'none';
         };
         reader.readAsDataURL(archivoFotoFrente);
+      } catch (err) {
+        alert("Error al procesar la imagen seleccionada: " + err.message);
+        status.style.display = 'none';
       }
     }
 
-    function procesarFotoReverso(event) {
-      archivoFotoReverso = event.target.files[0];
-      if (archivoFotoReverso) {
+    async function procesarFotoReverso(event) {
+      const fileRaw = event.target.files[0];
+      if (!fileRaw) return;
+
+      const status = document.getElementById('status-reverso');
+      status.style.display = 'block';
+
+      try {
+        const fileEstandar = await estandarizarImagen(fileRaw);
+        archivoFotoReverso = await comprimirImagen(fileEstandar);
+
         const reader = new FileReader();
         reader.onload = function(e) {
           document.getElementById('preview-img-reverso').src = e.target.result;
           document.getElementById('preview-container-reverso').style.display = 'block';
+          status.style.display = 'none';
         };
         reader.readAsDataURL(archivoFotoReverso);
+      } catch (err) {
+        alert("Error al procesar la imagen seleccionada: " + err.message);
+        status.style.display = 'none';
       }
     }
 
@@ -560,37 +645,6 @@
       document.getElementById('modalTabla').style.display = 'none';
     }
 
-    function comprimirImagen(archivo, calidad = 0.7, maxAncho = 1200) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(archivo);
-        reader.onload = function(event) {
-          const img = new Image();
-          img.src = event.target.result;
-          img.onload = function() {
-            const canvas = document.createElement('canvas');
-            let ancho = img.width;
-            let alto = img.height;
-
-            if (ancho > maxAncho) {
-              alto = Math.round((alto * maxAncho) / ancho);
-              ancho = maxAncho;
-            }
-
-            canvas.width = ancho;
-            canvas.height = alto;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, ancho, alto);
-
-            canvas.toBlob((blob) => {
-              resolve(new File([blob], archivo.name, { type: 'image/jpeg' }));
-            }, 'image/jpeg', calidad);
-          };
-        };
-        reader.onerror = error => reject(error);
-      });
-    }
-
     async function guardarRegistro() {
       const brigadista = document.getElementById('brigadista').value.trim();
       const telefono = document.getElementById('telefono').value.trim();
@@ -606,19 +660,15 @@
       }
 
       let fotoUrl = null;
-
-      // Subir archivo del frente de manera prioritaria si existe
       let archivoASubir = archivoFotoFrente || archivoFotoReverso;
 
       if (_supabase && archivoASubir) {
         try {
-          const fotoComprimida = await comprimirImagen(archivoASubir);
-          const fileExt = 'jpg';
-          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
           
           const { data: uploadData, error: uploadError } = await _supabase.storage
             .from('fotos-ine')
-            .upload(fileName, fotoComprimida);
+            .upload(fileName, archivoASubir);
 
           if (uploadError) {
             console.error("Error al subir foto:", uploadError);
