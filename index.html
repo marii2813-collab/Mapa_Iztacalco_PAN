@@ -158,10 +158,10 @@
         <input type="text" id="seccion_electoral" placeholder="Se llena automáticamente al escanear el Frente (Ej: 1540)" style="background:#fff; font-weight:bold; color:#117a65;">
       </div>
 
-      <!-- CASILLA DEDICADA PARA CÓDIGO OCR REVERSO -->
+      <!-- CASILLA DEDICADA PARA CÓDIGO OCR REVERSO (13 DÍGITOS) -->
       <div class="form-group" style="background:#eef6ff; padding:10px; border-radius:8px; border:1px solid #b6d4fe;">
-        <label style="color:#084298;">🆔 Código OCR / CIC / MRZ (Extraído del Reverso)</label>
-        <input type="text" id="ocr_resultado" placeholder="Se llena automáticamente al escanear el Reverso (Ej: IDMEX...)" style="background:#fff; font-weight:bold; color:#0d6efd;">
+        <label style="color:#084298;">🆔 Código OCR / CIC (13 Dígitos tras <<)</label>
+        <input type="text" id="ocr_resultado" placeholder="Se llena automáticamente al escanear el Reverso (Ej: 1234567890123)" style="background:#fff; font-weight:bold; color:#0d6efd;">
       </div>
 
       <div class="form-group">
@@ -265,7 +265,7 @@
               <th>Brigadista</th>
               <th>Contacto</th>
               <th>Sección</th>
-              <th>Clave/OCR INE</th>
+              <th>Código OCR (13 dig)</th>
               <th>Teléfono</th>
               <th>Estatus</th>
               <th>INE</th>
@@ -539,7 +539,7 @@
       }
     }
 
-    // 1. ESCANEO DEL FRENTE: EXPRESIÓN REGULAR PARA SECCIÓN ELECTORAL
+    // 1. ESCANEO DEL FRENTE: EXPRESIÓN REGULAR MEJORADA PARA SECCIÓN ELECTORAL
     async function extraerTextoFrente() {
       if (!archivoFotoFrente) {
         alert("Por favor selecciona o toma primero la foto del FRENTE.");
@@ -554,17 +554,17 @@
         const ret = await worker.recognize(archivoFotoFrente);
         await worker.terminate();
 
-        const texto = ret.data.text.toUpperCase().replace(/\s+/g, ' ');
+        const texto = ret.data.text.toUpperCase();
         
-        // Búsqueda específica: "SECCIÓN" / "SECCION" seguida de 4 dígitos
-        const patronSeccion = /SECCI[OÓ0]N\s*[:.]?\s*(\d{4})/i;
+        // Búsqueda flexible de palabras clave (SECCIÓN, SECCION, SECC, SEC) seguidas de 3 a 4 dígitos
+        const patronSeccion = /(?:SECCI[OÓ0]N|SECC|SEC)\D*?(\d{3,4})\b/i;
         const matchSeccion = texto.match(patronSeccion);
 
         if (matchSeccion && matchSeccion[1]) {
           document.getElementById('seccion_electoral').value = matchSeccion[1];
           alert(`✅ ¡Sección Electoral detectada!: ${matchSeccion[1]}`);
         } else {
-          // Búsqueda secundaria de respaldo (bloque aislado de 4 dígitos)
+          // Fallback: Buscar cualquier bloque independiente de 4 dígitos
           const matchCuatroDigitos = texto.match(/\b\d{4}\b/g);
           if (matchCuatroDigitos && matchCuatroDigitos.length > 0) {
             document.getElementById('seccion_electoral').value = matchCuatroDigitos[0];
@@ -581,14 +581,14 @@
       }
     }
 
-    // 2. ESCANEO DEL REVERSO: FILTRO ESTRICTO PARA CÓDIGOS MRZ / CIC / IDMEX
+    // 2. ESCANEO DEL REVERSO: EXTRAE LOS 13 DÍGITOS POSTERIORES A "<<"
     async function extraerTextoReverso() {
       if (!archivoFotoReverso) {
         alert("Por favor selecciona o toma primero la foto del REVERSO.");
         return;
       }
       const status = document.getElementById('status-reverso');
-      status.innerText = "⏳ Extrayendo código MRZ/CIC del reverso...";
+      status.innerText = "⏳ Extrayendo 13 dígitos del reverso tras '<<'...";
       status.style.display = 'block';
 
       try {
@@ -598,21 +598,20 @@
 
         const texto = ret.data.text.toUpperCase();
 
-        // 1. Filtrar únicamente la línea MRZ principal del INE (IDMEX...)
-        const matchIDMEX = texto.match(/IDMEX[0-9A-Z<]+/i);
+        // Regex para capturar exactamente los 13 dígitos tras "<<" o "<"
+        const matchChevron13 = texto.match(/(?:<<|<)\s*(\d{13})/i);
         
-        // 2. Filtrar únicamente código CIC/OCR de 9 a 13 dígitos
-        const matchCIC = texto.match(/\b\d{9,13}\b/);
+        // Fallback: Cualquier secuencia continua de 13 dígitos
+        const matchCualquier13 = texto.match(/\b\d{13}\b/);
 
-        if (matchIDMEX) {
-          const idmexLimpio = matchIDMEX[0].replace(/</g, '').trim();
-          document.getElementById('ocr_resultado').value = idmexLimpio;
-          alert(`✅ ¡Código MRZ Reverso capturado correctamente!`);
-        } else if (matchCIC) {
-          document.getElementById('ocr_resultado').value = matchCIC[0];
-          alert(`✅ ¡Código CIC/OCR detectado!: ${matchCIC[0]}`);
+        if (matchChevron13 && matchChevron13[1]) {
+          document.getElementById('ocr_resultado').value = matchChevron13[1];
+          alert(`✅ ¡Código OCR de 13 dígitos capturado con éxito!: ${matchChevron13[1]}`);
+        } else if (matchCualquier13) {
+          document.getElementById('ocr_resultado').value = matchCualquier13[0];
+          alert(`✅ ¡Código OCR de 13 dígitos detectado!: ${matchCualquier13[0]}`);
         } else {
-          alert("❌ No se detectó un código mecánico válido (IDMEX/CIC). Limpia el visor y toma la foto con mejor iluminación.");
+          alert("❌ No se encontraron los 13 dígitos tras '<<'. Asegúrate de enfocar bien la franja del reverso e intenta de nuevo.");
         }
       } catch (e) {
         alert("Error al ejecutar OCR del Reverso: " + e.message);
@@ -752,7 +751,7 @@
             <b>Brigadista:</b> ${casa.brigadista_nombre}<br>
             <b>Contacto:</b> ${casa.nombre_persona || 'No proporcionado'}<br>
             <b>Sección Electoral:</b> ${casa.seccion_electoral || 'N/A'}<br>
-            <b>Clave/OCR INE:</b> ${casa.ine_clave_elector || 'N/A'}<br>
+            <b>Código OCR (13 dig):</b> ${casa.ine_clave_elector || 'N/A'}<br>
             <b>Teléfono:</b> ${casa.telefono || 'N/A'}<br>
             <b>Simpatizante:</b> ${casa.es_simpatizante ? 'Sí' : 'No'}<br>
             <b>Entregó INE:</b> ${casa.entrego_ine ? 'Sí' : 'No'}<br>
@@ -828,7 +827,7 @@
         return;
       }
       let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "ID,Brigadista,Nombre Ciudadano,Seccion Electoral,Clave OCR INE,Telefono,Es Simpatizante,Entrego INE,Registro Plataforma,Razon No Registro,Direccion,Observaciones,Latitud,Longitud\n";
+      csvContent += "ID,Brigadista,Nombre Ciudadano,Seccion Electoral,Codigo OCR (13 dig),Telefono,Es Simpatizante,Entrego INE,Registro Plataforma,Razon No Registro,Direccion,Observaciones,Latitud,Longitud\n";
 
       registrosCargados.forEach(row => {
         const fila = [
