@@ -9,6 +9,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+  <!-- Turf.js para análisis espacial (Punto en Polígono) -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -26,6 +29,22 @@
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background: #f8f9fa; }
     #map { height: 100vh; width: 100%; }
     
+    /* Buscador de ubicaciones */
+    .search-box-container {
+      position: absolute; top: 15px; left: 60px; z-index: 1000;
+      background: white; padding: 8px; border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: flex; gap: 6px;
+      max-width: 380px; width: calc(100% - 80px);
+    }
+    .search-box-container input {
+      flex: 1; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; outline: none;
+    }
+    .search-box-container input:focus { border-color: #007bff; }
+    .search-box-container button {
+      background: #007bff; color: white; border: none; padding: 8px 14px;
+      border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;
+    }
+
     .btn-gps {
       position: absolute; bottom: 20px; right: 20px; z-index: 1000;
       background: #007bff; color: white; border: none; padding: 12px 18px;
@@ -113,7 +132,6 @@
       background: #007bff; color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer;
     }
 
-    /* Modal del Recortador / Cropper */
     #modalCropper {
       display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%;
       background-color: rgba(0,0,0,0.9); flex-direction: column; justify-content: center; align-items: center;
@@ -148,6 +166,12 @@
     </div>
   </div>
 
+  <!-- Buscador de Ubicación / Dirección -->
+  <div class="search-box-container">
+    <input type="text" id="inputBusquedaDireccion" placeholder="Buscar dirección o lugar..." onkeypress="if(event.key === 'Enter') buscarUbicacionYSeccion()">
+    <button onclick="buscarUbicacionYSeccion()">🔍 Buscar</button>
+  </div>
+
   <div id="map"></div>
   <button class="btn-gps" onclick="centrarGPS()">📍 Mi Ubicación</button>
   <button class="btn-tabla-flotante" onclick="abrirModalTabla()">📊 Ver Registros</button>
@@ -173,23 +197,19 @@
         <span id="tel-error" class="error-msg">El teléfono debe contener exactamente 10 dígitos numéricos.</span>
       </div>
 
-      <!-- CASILLA DEDICADA PARA SECCIÓN ELECTORAL -->
       <div class="form-group" style="background:#e8f8f5; padding:10px; border-radius:8px; border:1px solid #a3e4d7;">
-        <label style="color:#117a65;">🗳️️ Sección Electoral (4 dígitos)</label>
+        <label style="color:#117a65;">🗳 Sección Electoral (4 dígitos)</label>
         <input type="text" id="seccion_electoral" placeholder="Se llena automáticamente con OCR o Frente (Ej: 1540)" style="background:#fff; font-weight:bold; color:#117a65;">
       </div>
 
-      <!-- CASILLA DEDICADA PARA CÓDIGO OCR REVERSO (13 DÍGITOS) -->
       <div class="form-group" style="background:#eef6ff; padding:10px; border-radius:8px; border:1px solid #b6d4fe;">
         <label style="color:#084298;">🆔 Código OCR (13 Dígitos)</label>
         <input type="text" id="ocr_resultado" placeholder="Se llena automáticamente al escanear el Reverso (Ej: 1540123456789)" style="background:#fff; font-weight:bold; color:#0d6efd;">
       </div>
 
-      <!-- SECCIÓN DE CARGA DE FOTOGRAFÍAS Y BOTONES DE ESCANEO -->
       <div style="background:#f8f9fa; border:1px solid #ced4da; padding:12px; border-radius:10px; margin-bottom:15px;">
-        <h4 style="margin:0 0 10px 0; font-size:14px; color:#495057;">📷 Carga de Credencial (Cargar ambos lados primero)</h4>
+        <h4 style="margin:0 0 10px 0; font-size:14px; color:#495057;">📷 Carga de Credencial</h4>
         
-        <!-- Frente -->
         <div class="form-group" style="margin-bottom:10px;">
           <label>1. Fotografía del Frente de INE</label>
           <input type="file" id="foto_ine_frente" accept="image/*" onchange="procesarFotoFrente(event)">
@@ -199,7 +219,6 @@
           </div>
         </div>
 
-        <!-- Reverso -->
         <div class="form-group" style="margin-bottom:12px;">
           <label>2. Fotografía del Reverso de INE</label>
           <input type="file" id="foto_ine_reverso" accept="image/*" onchange="procesarFotoReverso(event)">
@@ -209,10 +228,10 @@
           </div>
         </div>
 
-        <!-- Botones de Escaneo juntos en la parte inferior -->
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
           <button type="button" class="btn-ocr" style="flex:1; min-width:140px; background:#0d6efd;" onclick="extraerTextoReverso()">🔍 Escanear OCR y Sección (Reverso)</button>
         </div>
+      </div>
      
       <div class="form-group">
         <label>¿Es Simpatizante?</label>
@@ -417,10 +436,25 @@
     };
     L.control.layers(null, capasOverlay, { collapsed: false }).addTo(map);
 
+    // Variables globales para almacenar features GeoJSON para análisis con Turf.js
+    let seccionesFeaturesD11 = [];
+    let seccionesFeaturesD15 = [];
+    let rutasFeaturesD11 = [];
+    let rutasFeaturesD15 = [];
+
     function cargarGeoJSON(nombreArchivo, grupo, tipoCapa) {
       fetch(encodeURIComponent(nombreArchivo))
         .then(res => res.json())
         .then(data => {
+          if (tipoCapa === 'secciones') {
+            if (nombreArchivo.includes('11')) seccionesFeaturesD11.push(...data.features);
+            if (nombreArchivo.includes('15')) seccionesFeaturesD15.push(...data.features);
+          }
+          if (tipoCapa === 'rutas') {
+            if (nombreArchivo.includes('11')) rutasFeaturesD11.push(...data.features);
+            if (nombreArchivo.includes('15')) rutasFeaturesD15.push(...data.features);
+          }
+
           const layer = L.geoJSON(data, {
             style: function(feature) {
               if (tipoCapa === 'alcaldia') return { color: '#000000', weight: 3.5, fill: false, opacity: 0.9 };
@@ -455,6 +489,94 @@
     cargarGeoJSON('Distrito Local 15.-Rutas.geojson', capaD15_Rutas, 'rutas');
     cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, 'secciones');
 
+    // =========================================================================
+    // FUNCIÓN DE BÚSQUEDA DE UBICACIÓN Y SECCIÓN CON TURF.JS
+    // =========================================================================
+    async function buscarUbicacionYSeccion() {
+      const query = document.getElementById('inputBusquedaDireccion').value.trim();
+      if (!query) {
+        alert("Por favor ingresa una dirección o lugar a buscar.");
+        return;
+      }
+
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ", Iztacalco, Ciudad de México")}`;
+      
+      try {
+        const response = await fetch(url);
+        const results = await response.json();
+
+        if (results && results.length > 0) {
+          const lat = parseFloat(results[0].lat);
+          const lon = parseFloat(results[0].lon);
+          const displayName = results[0].display_name;
+
+          map.setView([lat, lon], 17);
+
+          const punto = turf.point([lon, lat]);
+          let seccionEncontrada = null;
+          let distritoEncontrado = null;
+          let rutaEncontrada = null;
+
+          // Buscar sección en Distrito 11
+          for (let feat of seccionesFeaturesD11) {
+            if (turf.booleanPointInPolygon(punto, feat)) {
+              seccionEncontrada = feat.properties.SECCION || feat.properties.seccion;
+              distritoEncontrado = "Distrito Local 11";
+              break;
+            }
+          }
+
+          // Buscar sección en Distrito 15 si no se halló
+          if (!seccionEncontrada) {
+            for (let feat of seccionesFeaturesD15) {
+              if (turf.booleanPointInPolygon(punto, feat)) {
+                seccionEncontrada = feat.properties.SECCION || feat.properties.seccion;
+                distritoEncontrado = "Distrito Local 15";
+                break;
+              }
+            }
+          }
+
+          // Buscar ruta D11
+          for (let feat of rutasFeaturesD11) {
+            if (turf.booleanPointInPolygon(punto, feat)) {
+              rutaEncontrada = feat.properties.ruta || feat.properties.RUTA;
+              break;
+            }
+          }
+
+          // Buscar ruta D15
+          if (!rutaEncontrada) {
+            for (let feat of rutasFeaturesD15) {
+              if (turf.booleanPointInPolygon(punto, feat)) {
+                rutaEncontrada = feat.properties.ruta || feat.properties.RUTA;
+                break;
+              }
+            }
+          }
+
+          let mensajePopup = `
+            <b>📍 Ubicación Encontrada:</b><br><span style="font-size:11px; color:#555;">${displayName}</span><hr>
+            <b>🗳 Sección Electoral:</b> <span style="color:#117a65; font-size:14px; font-weight:bold;">${seccionEncontrada ? seccionEncontrada : 'No detectada (Fuera de límites)'}</span><br>
+            <b>🏛 Distrito:</b> ${distritoEncontrado ? distritoEncontrado : 'N/D'}<br>
+            <b>🔲 Ruta:</b> ${rutaEncontrada ? rutaEncontrada : 'N/D'}<br><br>
+            <button class="btn-registrar-aqui" onclick="abrirModalConCoordenadas(${lat}, ${lon})">
+              ➕ Registrar Casa Aquí
+            </button>
+          `;
+
+          if (clickMarker) map.removeLayer(clickMarker);
+          clickMarker = L.marker([lat, lon]).addTo(map).bindPopup(mensajePopup).openPopup();
+
+        } else {
+          alert("No se encontró la ubicación. Intenta con una calle y colonia más específica de Iztacalco.");
+        }
+      } catch (e) {
+        console.error("Error al buscar ubicación:", e);
+        alert("Ocurrió un error al realizar la búsqueda.");
+      }
+    }
+
     map.on('zoomend', function() {
       const currentZoom = map.getZoom();
       document.querySelectorAll('.etiqueta-seccion').forEach(el => {
@@ -480,11 +602,8 @@
       }
     }
 
-    // =========================================================================
-    // LÓGICA DE EDICIÓN, ENDEREZADO Y RECORTE CON CROPPER.JS
-    // =========================================================================
     let cropper = null;
-    let fotoTipoActual = null; // 'frente' o 'reverso'
+    let fotoTipoActual = null;
     let archivoFotoFrente = null;
     let archivoFotoReverso = null;
 
@@ -513,45 +632,24 @@
       reader.onload = function(e) {
         const imageElement = document.getElementById('cropper-img');
         imageElement.src = e.target.result;
-
         document.getElementById('modalCropper').style.display = 'flex';
-
         if (cropper) cropper.destroy();
-        
-        cropper = new Cropper(imageElement, {
-          viewMode: 1,
-          autoCropArea: 0.9,
-          responsive: true,
-          restore: false
-        });
+        cropper = new Cropper(imageElement, { viewMode: 1, autoCropArea: 0.9, responsive: true, restore: false });
       };
       reader.readAsDataURL(file);
     }
 
-    function rotarCropper(grados) {
-      if (cropper) cropper.rotate(grados);
-    }
-
+    function rotarCropper(grados) { if (cropper) cropper.rotate(grados); }
     function cerrarCropper() {
       document.getElementById('modalCropper').style.display = 'none';
-      if (cropper) {
-        cropper.destroy();
-        cropper = null;
-      }
+      if (cropper) { cropper.destroy(); cropper = null; }
     }
 
     function confirmarRecorte() {
       if (!cropper) return;
-
-      const canvas = cropper.getCroppedCanvas({
-        maxWidth: 1600,
-        maxHeight: 1600,
-        fillColor: '#fff'
-      });
-
+      const canvas = cropper.getCroppedCanvas({ maxWidth: 1600, maxHeight: 1600, fillColor: '#fff' });
       canvas.toBlob(async (blob) => {
         const archivoEditado = new File([blob], `credencial_${fotoTipoActual}_editada.jpg`, { type: 'image/jpeg' });
-        
         if (fotoTipoActual === 'frente') {
           archivoFotoFrente = archivoEditado;
           document.getElementById('preview-img-frente').src = URL.createObjectURL(archivoEditado);
@@ -561,7 +659,6 @@
           document.getElementById('preview-img-reverso').src = URL.createObjectURL(archivoEditado);
           document.getElementById('preview-container-reverso').style.display = 'block';
         }
-
         cerrarCropper();
       }, 'image/jpeg', 0.85);
     }
@@ -571,13 +668,11 @@
       if (!fileRaw) return;
       const status = document.getElementById('status-frente');
       status.style.display = 'block';
-
       try {
         const fileEstandar = await estandarizarImagen(fileRaw);
         status.style.display = 'none';
         abrirCropperModal(fileEstandar, 'frente');
       } catch (err) {
-        alert("Error al procesar la imagen del frente: " + err.message);
         status.style.display = 'none';
       }
     }
@@ -587,29 +682,22 @@
       if (!fileRaw) return;
       const status = document.getElementById('status-reverso');
       status.style.display = 'block';
-
       try {
         const fileEstandar = await estandarizarImagen(fileRaw);
         status.style.display = 'none';
         abrirCropperModal(fileEstandar, 'reverso');
       } catch (err) {
-        alert("Error al procesar la imagen del reverso: " + err.message);
         status.style.display = 'none';
       }
     }
 
-    // =========================================================================
-    // EXTRACCIÓN OCR CON TESSERACT
-    // =========================================================================
-
-    // 1. ESCANEO DEL REVERSO: EXTRACCIÓN DE LOS 13 DÍGITOS DEL OCR Y PRIMEROS 4 DÍGITOS (SECCIÓN)
     async function extraerTextoReverso() {
       if (!archivoFotoReverso) {
-        alert("Por favor carga o toma primero la foto del REVERSO.");
+        alert("Por favor carga primero la foto del REVERSO.");
         return;
       }
       const status = document.getElementById('status-reverso');
-      status.innerText = "⏳ Leyendo OCR de 13 dígitos y Sección...";
+      status.innerText = "⏳ Leyendo OCR...";
       status.style.display = 'block';
 
       try {
@@ -618,103 +706,20 @@
         await worker.terminate();
 
         const texto = ret.data.text.toUpperCase();
-
         const patronChevron13 = /(?:<<|«|<{1,2})\s*(\d{13})\b/;
         const matchChevron = texto.match(patronChevron13);
-
-        let ocrCompleto = null;
-
-        if (matchChevron && matchChevron[1]) {
-          ocrCompleto = matchChevron[1];
-        } else {
-          // Búsqueda alternativa por bloque directo de 13 dígitos
-          const match13 = texto.match(/\b(\d{13})\b/);
-          if (match13 && match13[1]) {
-            ocrCompleto = match13[1];
-          }
-        }
+        let ocrCompleto = matchChevron ? matchChevron[1] : (texto.match(/\b(\d{13})\b/) || [])[1];
 
         if (ocrCompleto) {
           const seccionExtraida = ocrCompleto.substring(0, 4);
-          
           document.getElementById('ocr_resultado').value = ocrCompleto;
           document.getElementById('seccion_electoral').value = seccionExtraida;
-
-          alert(`✅ ¡Lectura exitosa desde el Reverso!\n\n• Código OCR (13 dígitos): ${ocrCompleto}\n• Sección Electoral (4 primeros dígitos): ${seccionExtraida}`);
+          alert(`✅ ¡Lectura exitosa!\n• OCR: ${ocrCompleto}\n• Sección: ${seccionExtraida}`);
         } else {
-          alert("⚠️ No se identificaron los 13 dígitos tras '<<'. Te recomendamos usar la herramienta de recorte e incluir solo la franja con el texto del OCR.");
+          alert("⚠️ No se identificaron los 13 dígitos.");
         }
       } catch (e) {
-        alert("Error al ejecutar OCR del Reverso: " + e.message);
-      } finally {
-        status.style.display = 'none';
-        status.innerText = "⏳ Procesando imagen...";
-      }
-    }
-
-    // 2. ESCANEO DEL FRENTE: DETECCIÓN OPCIONAL DE SECCIÓN ELECTORAL
-    async function extraerTextoFrente() {
-      if (!archivoFotoFrente) {
-        alert("Por favor carga o toma primero la foto del FRENTE.");
-        return;
-      }
-      const status = document.getElementById('status-frente');
-      status.innerText = "⏳ Analizando Sección Electoral en Frente...";
-      status.style.display = 'block';
-
-      try {
-        const worker = await Tesseract.createWorker('spa');
-        const ret = await worker.recognize(archivoFotoFrente);
-        await worker.terminate();
-
-        let seccionEncontrada = null;
-        const words = ret.data.words || [];
-
-        // Coordenadas espaciales cerca de SECCIÓN
-        const palabraSeccion = words.find(w => /SECCI[OÓ0]N|SECC/i.test(w.text));
-
-        if (palabraSeccion) {
-          const secX = (palabraSeccion.bbox.x0 + palabraSeccion.bbox.x1) / 2;
-          const secY = palabraSeccion.bbox.y1;
-
-          let candidatos = words.filter(w => {
-            const num = w.text.replace(/\D/g, '');
-            const esNumeroValido = num.length >= 3 && num.length <= 4;
-            const estaDebajo = w.bbox.y0 >= (secY - 5);
-            return esNumeroValido && estaDebajo;
-          });
-
-          candidatos.sort((a, b) => {
-            const centroXA = (a.bbox.x0 + a.bbox.x1) / 2;
-            const centroXB = (b.bbox.x0 + b.bbox.x1) / 2;
-            return Math.abs(centroXA - secX) - Math.abs(centroXB - secX);
-          });
-
-          if (candidatos.length > 0) {
-            seccionEncontrada = candidatos[0].text.replace(/\D/g, '');
-          }
-        }
-
-        if (!seccionEncontrada) {
-          let textoLimpio = ret.data.text.toUpperCase();
-          textoLimpio = textoLimpio.replace(/\d{2}[\/\.-]\d{2}[\/\.-]\d{4}/g, '');
-          textoLimpio = textoLimpio.replace(/\d{4}\s*[\-–—]\s*\d{4}/g, '');
-          textoLimpio = textoLimpio.replace(/A[ÑN]O\s+DE\s+REGISTRO\s*\d{4}/g, '');
-
-          const match = textoLimpio.match(/(?:SECCI[OÓ0]N|SECC|SEC)[\s\S]{0,30}?(\d{3,4})\b/i);
-          if (match && match[1]) {
-            seccionEncontrada = match[1];
-          }
-        }
-
-        if (seccionEncontrada) {
-          document.getElementById('seccion_electoral').value = seccionEncontrada;
-          alert(`✅ ¡Sección Electoral detectada en Frente!: ${seccionEncontrada}`);
-        } else {
-          alert("⚠️ No se identificó la sección en el frente. Prueba recortando el área de la palabra SECCIÓN o realiza el escaneo con la foto del reverso.");
-        }
-      } catch (e) {
-        alert("Error al ejecutar OCR del Frente: " + e.message);
+        alert("Error al ejecutar OCR: " + e.message);
       } finally {
         status.style.display = 'none';
         status.innerText = "⏳ Procesando imagen...";
@@ -722,14 +727,11 @@
     }
 
     let clickMarker;
-    
     function abrirModalConCoordenadas(lat, lng) {
       document.getElementById('lat').value = lat;
       document.getElementById('lng').value = lng;
-
       if (clickMarker) map.removeLayer(clickMarker);
       clickMarker = L.marker([lat, lng]).addTo(map);
-
       document.getElementById('modalForm').style.display = 'flex';
       toggleRazonNoRegistro();
     }
@@ -756,24 +758,14 @@
       document.getElementById('modalTabla').style.display = 'flex';
       renderizarTablaYTotales();
     }
-
-    function cerrarModalTabla() {
-      document.getElementById('modalTabla').style.display = 'none';
-    }
+    function cerrarModalTabla() { document.getElementById('modalTabla').style.display = 'none'; }
 
     async function guardarRegistro() {
       const brigadista = document.getElementById('brigadista').value.trim();
       const telefono = document.getElementById('telefono').value.trim();
 
-      if (!brigadista) {
-        alert("Por favor ingresa el nombre del brigadista.");
-        return;
-      }
-
-      if (telefono.length > 0 && telefono.length !== 10) {
-        alert("El número telefónico debe ser de 10 dígitos exactamente.");
-        return;
-      }
+      if (!brigadista) { alert("Ingresa el nombre del brigadista."); return; }
+      if (telefono.length > 0 && telefono.length !== 10) { alert("El teléfono debe ser de 10 dígitos."); return; }
 
       let fotoUrl = null;
       let archivoASubir = archivoFotoFrente || archivoFotoReverso;
@@ -781,17 +773,12 @@
       if (_supabase && archivoASubir) {
         try {
           const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
-          const { data: uploadData, error: uploadError } = await _supabase.storage
-            .from('fotos-ine')
-            .upload(fileName, archivoASubir);
-
+          const { error: uploadError } = await _supabase.storage.from('fotos-ine').upload(fileName, archivoASubir);
           if (!uploadError) {
             const { data: publicUrlData } = _supabase.storage.from('fotos-ine').getPublicUrl(fileName);
             fotoUrl = publicUrlData.publicUrl;
           }
-        } catch (e) {
-          console.error("Error al subir imagen:", e);
-        }
+        } catch (e) { console.error(e); }
       }
 
       const nombrePersona = document.getElementById('nombre_persona').value.trim() || 'No proporcionado';
@@ -803,79 +790,51 @@
       const razonNoRegistro = registroPlataforma ? 'N/A' : (document.getElementById('razon_no_registro').value.trim() || 'No especificado');
       const direccion = document.getElementById('direccion').value.trim() || 'No especificada';
       const observaciones = document.getElementById('observaciones').value.trim();
-
       const lat = parseFloat(document.getElementById('lat').value);
       const lng = parseFloat(document.getElementById('lng').value);
 
       if (_supabase) {
         const { error } = await _supabase.from('simpatizantes').insert([{
-          brigadista_nombre: brigadista,
-          nombre_persona: nombrePersona,
-          seccion_electoral: seccion,
-          ine_clave_elector: ocrDato,
-          telefono: telefono || null,
-          es_simpatizante: simpatizante,
-          entrego_ine: entregoIne,
-          registro_plataforma: registroPlataforma,
-          razon_no_registro: razonNoRegistro,
-          foto_ine_url: fotoUrl,
-          direccion: direccion,
-          observaciones: observaciones,
-          lat: lat,
-          lng: lng
+          brigadista_nombre: brigadista, nombre_persona: nombrePersona, seccion_electoral: seccion,
+          ine_clave_elector: ocrDato, telefono: telefono || null, es_simpatizante: simpatizante,
+          entrego_ine: entregoIne, registro_plataforma: registroPlataforma, razon_no_registro: razonNoRegistro,
+          foto_ine_url: fotoUrl, direccion: direccion, observaciones: observaciones, lat: lat, lng: lng
         }]);
 
         if (error) {
-          alert("Error al guardar en Supabase: " + error.message);
+          alert("Error al guardar: " + error.message);
         } else {
           alert("¡Registro guardado exitosamente!");
           cerrarModal();
           cargarCasasGuardadas();
         }
-      } else {
-        alert("Atención: Conexión con Supabase no disponible.");
       }
     }
 
     async function cargarCasasGuardadas() {
       capaCasas.clearLayers();
       if (!_supabase) return;
-
       const { data, error } = await _supabase.from('simpatizantes').select('*').order('id', { ascending: false });
       if (!error && data) {
         registrosCargados = data;
         data.forEach(casa => {
           const colorIcono = casa.es_simpatizante ? '#27ae60' : '#f39c12';
-          
           let popupContent = `
             <b>Brigadista:</b> ${casa.brigadista_nombre}<br>
             <b>Contacto:</b> ${casa.nombre_persona || 'No proporcionado'}<br>
             <b>Sección Electoral:</b> ${casa.seccion_electoral || 'N/A'}<br>
-            <b>Código OCR (13 dig):</b> ${casa.ine_clave_elector || 'N/A'}<br>
+            <b>Código OCR:</b> ${casa.ine_clave_elector || 'N/A'}<br>
             <b>Teléfono:</b> ${casa.telefono || 'N/A'}<br>
             <b>Simpatizante:</b> ${casa.es_simpatizante ? 'Sí' : 'No'}<br>
             <b>Entregó INE:</b> ${casa.entrego_ine ? 'Sí' : 'No'}<br>
-            <b>Plataforma:</b> ${casa.registro_plataforma ? 'Sí' : 'No (' + (casa.razon_no_registro || 'N/A') + ')'}<br>
             <b>Dirección:</b> ${casa.direccion || 'S/N'}<br>
           `;
-
-          if (casa.observaciones) {
-            popupContent += `<b>Notas:</b> ${casa.observaciones}<br>`;
-          }
-
           if (casa.foto_ine_url) {
             popupContent += `<br><a href="${casa.foto_ine_url}" target="_blank"><img src="${casa.foto_ine_url}" style="width:100%; border-radius:4px; max-height:100px; object-fit:cover;"></a>`;
           }
-
           const marcador = L.circleMarker([casa.lat, casa.lng], {
-            radius: 8,
-            fillColor: colorIcono,
-            color: '#000',
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.85
+            radius: 8, fillColor: colorIcono, color: '#000', weight: 1, opacity: 1, fillOpacity: 0.85
           }).bindPopup(popupContent);
-
           capaCasas.addLayer(marcador);
         });
       }
@@ -885,7 +844,6 @@
     function renderizarTablaYTotales() {
       const cuerpo = document.getElementById('cuerpoTabla');
       cuerpo.innerHTML = '';
-
       let countTotal = registrosCargados.length;
       let countSimpa = 0;
       let countIne = 0;
@@ -922,33 +880,16 @@
     }
 
     function descargarCSV() {
-      if (registrosCargados.length === 0) {
-        alert("No hay registros para exportar.");
-        return;
-      }
-      let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "ID,Brigadista,Nombre Ciudadano,Seccion Electoral,Codigo OCR (13 dig),Telefono,Es Simpatizante,Entrego INE,Registro Plataforma,Razon No Registro,Direccion,Observaciones,Latitud,Longitud\n";
-
+      if (registrosCargados.length === 0) { alert("No hay registros."); return; }
+      let csvContent = "data:text/csv;charset=utf-8,ID,Brigadista,Nombre Ciudadano,Seccion Electoral,Codigo OCR,Telefono,Es Simpatizante,Entrego INE,Registro Plataforma,Razon No Registro,Direccion,Latitud,Longitud\n";
       registrosCargados.forEach(row => {
-        const fila = [
-          row.id,
-          `"${row.brigadista_nombre || ''}"`,
-          `"${row.nombre_persona || ''}"`,
-          `"${row.seccion_electoral || ''}"`,
-          `"${row.ine_clave_elector || ''}"`,
-          `"${row.telefono || ''}"`,
-          row.es_simpatizante ? "Si" : "No",
-          row.entrego_ine ? "Si" : "No",
-          row.registro_plataforma ? "Si" : "No",
-          `"${row.razon_no_registro || ''}"`,
-          `"${row.direccion || ''}"`,
-          `"${(row.observaciones || '').replace(/\n/g, ' ')}"`,
-          row.lat,
-          row.lng
-        ].join(",");
-        csvContent += fila + "\n";
+        csvContent += [
+          row.id, `"${row.brigadista_nombre || ''}"`, `"${row.nombre_persona || ''}"`,
+          `"${row.seccion_electoral || ''}"`, `"${row.ine_clave_elector || ''}"`, `"${row.telefono || ''}"`,
+          row.es_simpatizante ? "Si" : "No", row.entrego_ine ? "Si" : "No", row.registro_plataforma ? "Si" : "No",
+          `"${row.razon_no_registro || ''}"`, `"${row.direccion || ''}"`, row.lat, row.lng
+        ].join(",") + "\n";
       });
-
       const link = document.createElement("a");
       link.setAttribute("href", encodeURI(csvContent));
       link.setAttribute("download", `Registros_Iztacalco_${new Date().toISOString().slice(0,10)}.csv`);
@@ -957,32 +898,22 @@
       document.body.removeChild(link);
     }
 
-    function centrarGPS() {
-      map.locate({setView: true, maxZoom: 18, enableHighAccuracy: true});
-    }
+    function centrarGPS() { map.locate({setView: true, maxZoom: 18, enableHighAccuracy: true}); }
 
     map.on('locationfound', function(e) {
       if (gpsMarker) map.removeLayer(gpsMarker);
-      const lat = e.latlng.lat;
-      const lng = e.latlng.lng;
-
+      const lat = e.latlng.lat; const lng = e.latlng.lng;
       const popupHtml = `
         <div style="text-align:center;">
-          <b>📍 ¡Estás aquí!</b><br>
-          <span style="font-size:11px; color:#555;">Ubicación GPS precisa</span><br><br>
-          <button class="btn-registrar-aqui" onclick="abrirModalConCoordenadas(${lat}, ${lng})">
-            ➕ Registrar en mi ubicación actual
-          </button>
+          <b>📍 ¡Estás aquí!</b><br><br>
+          <button class="btn-registrar-aqui" onclick="abrirModalConCoordenadas(${lat}, ${lng})">➕ Registrar en mi ubicación</button>
         </div>
       `;
-
       L.circle(e.latlng, e.accuracy / 2, { color: '#007bff', fillColor: '#007bff', fillOpacity: 0.15 }).addTo(map);
       gpsMarker = L.marker(e.latlng).addTo(map).bindPopup(popupHtml).openPopup();
     });
 
-    map.on('locationerror', function() {
-      alert("No se pudo obtener la ubicación GPS.");
-    });
+    map.on('locationerror', function() { alert("No se pudo obtener la ubicación GPS."); });
   </script>
 </body>
 </html>
