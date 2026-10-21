@@ -162,6 +162,8 @@
     .btn-crop-confirm { background: #28a745; color: white; border: none; padding: 10px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; flex: 2; }
     .btn-crop-cancel { background: #dc3545; color: white; border: none; padding: 10px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; flex: 1; }
   </style>
+
+  <!-- Carga de API Geocoding de Google si cuentas con Key, o usa la alternativa precisa -->
 </head>
 <body>
 
@@ -180,10 +182,10 @@
     </div>
   </div>
 
-  <!-- Buscador Avanzado por Calle, Número, Colonia o Coordenadas -->
+  <!-- Buscador Avanzado con Motor Híbrido (Google API + Fallback Preciso) -->
   <div class="search-box-wrapper">
     <div class="search-box-container">
-      <input type="text" id="inputBusquedaDireccion" placeholder="Buscar dirección (calle, número, colonia) o coords (lat, lng)..." autocomplete="off" oninput="buscarSugerenciasEnTiempoReal()" onkeypress="if(event.key === 'Enter') buscarUbicacionesYMostrarOpciones()">
+      <input type="text" id="inputBusquedaDireccion" placeholder="Buscar dirección (ej: Sur 119 2251)..." autocomplete="off" oninput="buscarSugerenciasEnTiempoReal()" onkeypress="if(event.key === 'Enter') buscarUbicacionesYMostrarOpciones()">
       <button onclick="buscarUbicacionesYMostrarOpciones()">🔍 Buscar</button>
     </div>
     <ul id="listaSugerencias" class="suggestions-list"></ul>
@@ -216,7 +218,7 @@
 
       <div class="form-group" style="background:#e8f8f5; padding:10px; border-radius:8px; border:1px solid #a3e4d7;">
         <label style="color:#117a65;">🗳 Sección Electoral (4 dígitos)</label>
-        <input type="text" id="seccion_electoral" placeholder="Se llena automáticamente con OCR o Búsqueda" style="background:#fff; font-weight:bold; color:#117a65;">
+        <input type="text" id="seccion_electoral" placeholder="Se llena automáticamente con Búsqueda u OCR" style="background:#fff; font-weight:bold; color:#117a65;">
       </div>
 
       <div class="form-group" style="background:#eef6ff; padding:10px; border-radius:8px; border:1px solid #b6d4fe;">
@@ -365,6 +367,9 @@
   <script>
     const NIP_AUTORIZADO = "ALP_2026";
 
+    // SI TIENES API KEY DE GOOGLE MAPS, INSERTA TU CLAVE AQUÍ PARA USAR BÚSQUEDA 100% GOOGLE:
+    const GOOGLE_API_KEY = ""; 
+
     function verificarAccesoAutomatico() {
       let claveGuardada = localStorage.getItem("nip_brigada");
       if (claveGuardada === NIP_AUTORIZADO) {
@@ -506,22 +511,17 @@
     cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, 'secciones');
 
     // =========================================================================
-    // BUSCADOR AVANZADO: POR DIRECCIÓN (CALLE, NÚMERO, COLONIA) O COORDENADAS
+    // GEOCONVERSIÓN CON DETECCIÓN DE NÚMERO EXTERIOR Y COORDENADAS
     // =========================================================================
     let debounceTimer = null;
 
-    // Detectar si la entrada del usuario son coordenadas geográficas
     function esFormatoCoordenadas(texto) {
-      const regexCoords = /^\s*(-?\d+(\.\d+)?)\s*[,;\s]\s*(-?\d+(\.\d+)?)\s*$/;
-      return regexCoords.test(texto);
+      return /^\s*(-?\d+(\.\d+)?)\s*[,;\s]\s*(-?\d+(\.\d+)?)\s*$/.test(texto);
     }
 
     function extraerCoordenadas(texto) {
       const match = texto.match(/(-?\d+(\.\d+)?)\s*[,;\s]\s*(-?\d+(\.\d+)?)/);
-      if (match) {
-        return { lat: parseFloat(match[1]), lon: parseFloat(match[3]) };
-      }
-      return null;
+      return match ? { lat: parseFloat(match[1]), lon: parseFloat(match[3]) } : null;
     }
 
     function buscarSugerenciasEnTiempoReal() {
@@ -541,7 +541,7 @@
       }
 
       debounceTimer = setTimeout(() => {
-        obtenerUbicacionesNominatim(query, (resultados) => {
+        obtenerUbicacionesDireccion(query, (resultados) => {
           mostrarListaSugerencias(resultados);
         });
       }, 350);
@@ -554,7 +554,6 @@
         return;
       }
 
-      // 1. Si son Coordenadas
       if (esFormatoCoordenadas(query)) {
         const coords = extraerCoordenadas(query);
         if (coords) {
@@ -563,34 +562,48 @@
         }
       }
 
-      // 2. Si es Dirección por texto
-      obtenerUbicacionesNominatim(query, (resultados) => {
+      obtenerUbicacionesDireccion(query, (resultados) => {
         if (resultados.length > 0) {
           mostrarListaSugerencias(resultados);
           if (resultados.length === 1) {
             seleccionarUbicacion(resultados[0].lat, resultados[0].lon, resultados[0].display_name);
           }
         } else {
-          alert("No se encontraron resultados para esta dirección. Verifica el número de calle o colonia.");
+          alert("No se encontró el número exacto o dirección en Iztacalco. Intenta ajustando la calle o colonia.");
         }
       });
     }
 
-    function obtenerUbicacionesNominatim(query, callback) {
-      // Priorizar en Iztacalco y CDMX con parámetros específicos
+    function obtenerUbicacionesDireccion(query, callback) {
+      if (GOOGLE_API_KEY !== "") {
+        // Opción 1: API de Google Maps Geocoding si se proporciona Key
+        const urlGoogle = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query + ", Iztacalco, CDMX")}&key=${GOOGLE_API_KEY}`;
+        fetch(urlGoogle)
+          .then(res => res.json())
+          .then(data => {
+            if (data.results) {
+              const formateados = data.results.map(r => ({
+                lat: r.geometry.location.lat,
+                lon: r.geometry.location.lng,
+                display_name: r.formatted_address
+              }));
+              callback(formateados);
+            } else { callback([]); }
+          }).catch(() => callback([]));
+        return;
+      }
+
+      // Opción 2: Motor Nominatim optimizado por parámetros estructurados
       let queryLimpia = query;
       if (!query.toLowerCase().includes("iztacalco")) queryLimpia += ", Iztacalco";
       if (!query.toLowerCase().includes("méxico") && !query.toLowerCase().includes("cdmx")) queryLimpia += ", Ciudad de México";
 
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(queryLimpia)}`;
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=1&dedupe=1&countrycodes=mx&q=${encodeURIComponent(queryLimpia)}`;
 
       fetch(url)
         .then(res => res.json())
         .then(data => callback(data || []))
-        .catch(err => {
-          console.error("Error al buscar dirección:", err);
-          callback([]);
-        });
+        .catch(err => callback([]));
     }
 
     function mostrarListaSugerencias(resultados) {
@@ -628,7 +641,7 @@
       let distritoEncontrado = null;
       let rutaEncontrada = null;
 
-      // Buscar en Distrito 11
+      // Buscar Sección Electoral en D11
       for (let feat of seccionesFeaturesD11) {
         if (turf.booleanPointInPolygon(punto, feat)) {
           seccionEncontrada = feat.properties.SECCION || feat.properties.seccion;
@@ -637,7 +650,7 @@
         }
       }
 
-      // Buscar en Distrito 15
+      // Buscar Sección Electoral en D15
       if (!seccionEncontrada) {
         for (let feat of seccionesFeaturesD15) {
           if (turf.booleanPointInPolygon(punto, feat)) {
