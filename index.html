@@ -29,21 +29,35 @@
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: sans-serif; background: #f8f9fa; }
     #map { height: 100vh; width: 100%; }
     
-    /* Buscador de ubicaciones */
-    .search-box-container {
+    /* Contenedor del Buscador Estilo Google Maps con Lista Desplegable */
+    .search-box-wrapper {
       position: absolute; top: 15px; left: 60px; z-index: 1000;
-      background: white; padding: 8px; border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: flex; gap: 6px;
-      max-width: 380px; width: calc(100% - 80px);
+      max-width: 420px; width: calc(100% - 80px);
+    }
+    .search-box-container {
+      background: white; padding: 6px 8px; border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25); display: flex; gap: 6px; align-items: center;
     }
     .search-box-container input {
-      flex: 1; padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; outline: none;
+      flex: 1; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; outline: none;
     }
     .search-box-container input:focus { border-color: #007bff; }
     .search-box-container button {
-      background: #007bff; color: white; border: none; padding: 8px 14px;
-      border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;
+      background: #007bff; color: white; border: none; padding: 10px 14px;
+      border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; white-space: nowrap;
     }
+
+    /* Lista desplegable de sugerencias */
+    .suggestions-list {
+      background: white; margin-top: 4px; border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-height: 250px; overflow-y: auto;
+      display: none; list-style: none; padding: 0; border: 1px solid #ddd;
+    }
+    .suggestions-list li {
+      padding: 10px 14px; font-size: 13px; color: #333; cursor: pointer; border-bottom: 1px solid #eee;
+    }
+    .suggestions-list li:last-child { border-bottom: none; }
+    .suggestions-list li:hover { background-color: #f1f3f5; color: #007bff; }
 
     .btn-gps {
       position: absolute; bottom: 20px; right: 20px; z-index: 1000;
@@ -166,10 +180,13 @@
     </div>
   </div>
 
-  <!-- Buscador de Ubicación / Dirección -->
-  <div class="search-box-container">
-    <input type="text" id="inputBusquedaDireccion" placeholder="Buscar dirección o lugar..." onkeypress="if(event.key === 'Enter') buscarUbicacionYSeccion()">
-    <button onclick="buscarUbicacionYSeccion()">🔍 Buscar</button>
+  <!-- Buscador de Ubicación / Dirección con Desplegable -->
+  <div class="search-box-wrapper">
+    <div class="search-box-container">
+      <input type="text" id="inputBusquedaDireccion" placeholder="Buscar dirección (ej: Sur 115 A 2181)..." autocomplete="off" oninput="buscarSugerenciasEnTiempoReal()" onkeypress="if(event.key === 'Enter') buscarUbicacionesYMostrarOpciones()">
+      <button onclick="buscarUbicacionesYMostrarOpciones()">🔍 Buscar</button>
+    </div>
+    <ul id="listaSugerencias" class="suggestions-list"></ul>
   </div>
 
   <div id="map"></div>
@@ -199,12 +216,12 @@
 
       <div class="form-group" style="background:#e8f8f5; padding:10px; border-radius:8px; border:1px solid #a3e4d7;">
         <label style="color:#117a65;">🗳 Sección Electoral (4 dígitos)</label>
-        <input type="text" id="seccion_electoral" placeholder="Se llena automáticamente con OCR o Frente (Ej: 1540)" style="background:#fff; font-weight:bold; color:#117a65;">
+        <input type="text" id="seccion_electoral" placeholder="Se llena automáticamente con OCR o Búsqueda" style="background:#fff; font-weight:bold; color:#117a65;">
       </div>
 
       <div class="form-group" style="background:#eef6ff; padding:10px; border-radius:8px; border:1px solid #b6d4fe;">
         <label style="color:#084298;">🆔 Código OCR (13 Dígitos)</label>
-        <input type="text" id="ocr_resultado" placeholder="Se llena automáticamente al escanear el Reverso (Ej: 1540123456789)" style="background:#fff; font-weight:bold; color:#0d6efd;">
+        <input type="text" id="ocr_resultado" placeholder="Se llena automáticamente al escanear el Reverso" style="background:#fff; font-weight:bold; color:#0d6efd;">
       </div>
 
       <div style="background:#f8f9fa; border:1px solid #ced4da; padding:12px; border-radius:10px; margin-bottom:15px;">
@@ -436,7 +453,6 @@
     };
     L.control.layers(null, capasOverlay, { collapsed: false }).addTo(map);
 
-    // Variables globales para almacenar features GeoJSON para análisis con Turf.js
     let seccionesFeaturesD11 = [];
     let seccionesFeaturesD15 = [];
     let rutasFeaturesD11 = [];
@@ -490,92 +506,153 @@
     cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, 'secciones');
 
     // =========================================================================
-    // FUNCIÓN DE BÚSQUEDA DE UBICACIÓN Y SECCIÓN CON TURF.JS
+    // BUSCADOR AVANZADO CON SUGERENCIAS / OPCIONES ESTILO GOOGLE MAPS
     // =========================================================================
-    async function buscarUbicacionYSeccion() {
+    let debounceTimer = null;
+
+    function buscarSugerenciasEnTiempoReal() {
+      clearTimeout(debounceTimer);
       const query = document.getElementById('inputBusquedaDireccion').value.trim();
-      if (!query) {
-        alert("Por favor ingresa una dirección o lugar a buscar.");
+      const listContainer = document.getElementById('listaSugerencias');
+
+      if (query.length < 3) {
+        listContainer.style.display = 'none';
+        listContainer.innerHTML = '';
         return;
       }
 
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ", Iztacalco, Ciudad de México")}`;
-      
-      try {
-        const response = await fetch(url);
-        const results = await response.json();
-
-        if (results && results.length > 0) {
-          const lat = parseFloat(results[0].lat);
-          const lon = parseFloat(results[0].lon);
-          const displayName = results[0].display_name;
-
-          map.setView([lat, lon], 17);
-
-          const punto = turf.point([lon, lat]);
-          let seccionEncontrada = null;
-          let distritoEncontrado = null;
-          let rutaEncontrada = null;
-
-          // Buscar sección en Distrito 11
-          for (let feat of seccionesFeaturesD11) {
-            if (turf.booleanPointInPolygon(punto, feat)) {
-              seccionEncontrada = feat.properties.SECCION || feat.properties.seccion;
-              distritoEncontrado = "Distrito Local 11";
-              break;
-            }
-          }
-
-          // Buscar sección en Distrito 15 si no se halló
-          if (!seccionEncontrada) {
-            for (let feat of seccionesFeaturesD15) {
-              if (turf.booleanPointInPolygon(punto, feat)) {
-                seccionEncontrada = feat.properties.SECCION || feat.properties.seccion;
-                distritoEncontrado = "Distrito Local 15";
-                break;
-              }
-            }
-          }
-
-          // Buscar ruta D11
-          for (let feat of rutasFeaturesD11) {
-            if (turf.booleanPointInPolygon(punto, feat)) {
-              rutaEncontrada = feat.properties.ruta || feat.properties.RUTA;
-              break;
-            }
-          }
-
-          // Buscar ruta D15
-          if (!rutaEncontrada) {
-            for (let feat of rutasFeaturesD15) {
-              if (turf.booleanPointInPolygon(punto, feat)) {
-                rutaEncontrada = feat.properties.ruta || feat.properties.RUTA;
-                break;
-              }
-            }
-          }
-
-          let mensajePopup = `
-            <b>📍 Ubicación Encontrada:</b><br><span style="font-size:11px; color:#555;">${displayName}</span><hr>
-            <b>🗳 Sección Electoral:</b> <span style="color:#117a65; font-size:14px; font-weight:bold;">${seccionEncontrada ? seccionEncontrada : 'No detectada (Fuera de límites)'}</span><br>
-            <b>🏛 Distrito:</b> ${distritoEncontrado ? distritoEncontrado : 'N/D'}<br>
-            <b>🔲 Ruta:</b> ${rutaEncontrada ? rutaEncontrada : 'N/D'}<br><br>
-            <button class="btn-registrar-aqui" onclick="abrirModalConCoordenadas(${lat}, ${lon})">
-              ➕ Registrar Casa Aquí
-            </button>
-          `;
-
-          if (clickMarker) map.removeLayer(clickMarker);
-          clickMarker = L.marker([lat, lon]).addTo(map).bindPopup(mensajePopup).openPopup();
-
-        } else {
-          alert("No se encontró la ubicación. Intenta con una calle y colonia más específica de Iztacalco.");
-        }
-      } catch (e) {
-        console.error("Error al buscar ubicación:", e);
-        alert("Ocurrió un error al realizar la búsqueda.");
-      }
+      debounceTimer = setTimeout(() => {
+        obtenerUbicacionesNominatim(query, (resultados) => {
+          mostrarListaSugerencias(resultados);
+        });
+      }, 350);
     }
+
+    function buscarUbicacionesYMostrarOpciones() {
+      const query = document.getElementById('inputBusquedaDireccion').value.trim();
+      if (!query) {
+        alert("Por favor ingresa una dirección a buscar.");
+        return;
+      }
+      obtenerUbicacionesNominatim(query, (resultados) => {
+        if (resultados.length > 0) {
+          mostrarListaSugerencias(resultados);
+          // Si solo hay 1 resultado, seleccionarlo automáticamente
+          if (resultados.length === 1) {
+            seleccionarUbicacion(resultados[0].lat, resultados[0].lon, resultados[0].display_name);
+          }
+        } else {
+          alert("No se encontraron resultados para esta dirección en Iztacalco. Intenta con un número o colonia diferente.");
+        }
+      });
+    }
+
+    function obtenerUbicacionesNominatim(query, callback) {
+      // Priorizar Iztacalco y CDMX
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(query + ", Iztacalco, Ciudad de México")}`;
+
+      fetch(url)
+        .then(res => res.json())
+        .then(data => callback(data || []))
+        .catch(err => {
+          console.error("Error al obtener ubicaciones:", err);
+          callback([]);
+        });
+    }
+
+    function mostrarListaSugerencias(resultados) {
+      const listContainer = document.getElementById('listaSugerencias');
+      listContainer.innerHTML = '';
+
+      if (resultados.length === 0) {
+        listContainer.style.display = 'none';
+        return;
+      }
+
+      resultados.forEach(item => {
+        const li = document.createElement('li');
+        li.innerHTML = `📍 ${item.display_name}`;
+        li.onclick = () => {
+          seleccionarUbicacion(item.lat, item.lon, item.display_name);
+        };
+        listContainer.appendChild(li);
+      });
+
+      listContainer.style.display = 'block';
+    }
+
+    function seleccionarUbicacion(lat, lon, displayName) {
+      document.getElementById('listaSugerencias').style.display = 'none';
+      document.getElementById('inputBusquedaDireccion').value = displayName.split(',')[0]; // Colocar nombre corto
+
+      const latNum = parseFloat(lat);
+      const lonNum = parseFloat(lon);
+
+      map.setView([latNum, lonNum], 18);
+
+      const punto = turf.point([lonNum, latNum]);
+      let seccionEncontrada = null;
+      let distritoEncontrado = null;
+      let rutaEncontrada = null;
+
+      // Buscar en Distrito 11
+      for (let feat of seccionesFeaturesD11) {
+        if (turf.booleanPointInPolygon(punto, feat)) {
+          seccionEncontrada = feat.properties.SECCION || feat.properties.seccion;
+          distritoEncontrado = "Distrito Local 11";
+          break;
+        }
+      }
+
+      // Buscar en Distrito 15
+      if (!seccionEncontrada) {
+        for (let feat of seccionesFeaturesD15) {
+          if (turf.booleanPointInPolygon(punto, feat)) {
+            seccionEncontrada = feat.properties.SECCION || feat.properties.seccion;
+            distritoEncontrado = "Distrito Local 15";
+            break;
+          }
+        }
+      }
+
+      // Buscar Ruta D11
+      for (let feat of rutasFeaturesD11) {
+        if (turf.booleanPointInPolygon(punto, feat)) {
+          rutaEncontrada = feat.properties.ruta || feat.properties.RUTA;
+          break;
+        }
+      }
+
+      // Buscar Ruta D15
+      if (!rutaEncontrada) {
+        for (let feat of rutasFeaturesD15) {
+          if (turf.booleanPointInPolygon(punto, feat)) {
+            rutaEncontrada = feat.properties.ruta || feat.properties.RUTA;
+            break;
+          }
+        }
+      }
+
+      let mensajePopup = `
+        <b>📍 Ubicación Seleccionada:</b><br><span style="font-size:11px; color:#555;">${displayName}</span><hr style="margin:6px 0;">
+        <b>🗳 Sección Electoral:</b> <span style="color:#117a65; font-size:14px; font-weight:bold;">${seccionEncontrada ? seccionEncontrada : 'No detectada'}</span><br>
+        <b>🏛 Distrito:</b> ${distritoEncontrado ? distritoEncontrado : 'N/D'}<br>
+        <b>🔲 Ruta:</b> ${rutaEncontrada ? rutaEncontrada : 'N/D'}<br><br>
+        <button class="btn-registrar-aqui" onclick="abrirModalConCoordenadas(${latNum}, ${lonNum}, '${seccionEncontrada || ''}', '${displayName.replace(/'/g, "\\'")}')">
+          ➕ Registrar Casa Aquí
+        </button>
+      `;
+
+      if (clickMarker) map.removeLayer(clickMarker);
+      clickMarker = L.marker([latNum, lonNum]).addTo(map).bindPopup(mensajePopup).openPopup();
+    }
+
+    // Ocultar la lista si hace clic fuera del buscador
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.search-box-wrapper')) {
+        document.getElementById('listaSugerencias').style.display = 'none';
+      }
+    });
 
     map.on('zoomend', function() {
       const currentZoom = map.getZoom();
@@ -618,9 +695,7 @@
             const blobConvertido = await window.heic2any({ blob: archivo, toType: 'image/jpeg', quality: 0.85 });
             const blobFinal = Array.isArray(blobConvertido) ? blobConvertido[0] : blobConvertido;
             return new File([blobFinal], archivo.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
-          } catch (e) {
-            console.warn("Error HEIC:", e);
-          }
+          } catch (e) { console.warn(e); }
         }
       }
       return archivo;
@@ -672,9 +747,7 @@
         const fileEstandar = await estandarizarImagen(fileRaw);
         status.style.display = 'none';
         abrirCropperModal(fileEstandar, 'frente');
-      } catch (err) {
-        status.style.display = 'none';
-      }
+      } catch (err) { status.style.display = 'none'; }
     }
 
     async function procesarFotoReverso(event) {
@@ -686,9 +759,7 @@
         const fileEstandar = await estandarizarImagen(fileRaw);
         status.style.display = 'none';
         abrirCropperModal(fileEstandar, 'reverso');
-      } catch (err) {
-        status.style.display = 'none';
-      }
+      } catch (err) { status.style.display = 'none'; }
     }
 
     async function extraerTextoReverso() {
@@ -727,11 +798,20 @@
     }
 
     let clickMarker;
-    function abrirModalConCoordenadas(lat, lng) {
+    function abrirModalConCoordenadas(lat, lng, seccionAuto = '', direccionAuto = '') {
       document.getElementById('lat').value = lat;
       document.getElementById('lng').value = lng;
+      
+      if (seccionAuto) {
+        document.getElementById('seccion_electoral').value = seccionAuto;
+      }
+      if (direccionAuto) {
+        document.getElementById('direccion').value = direccionAuto;
+      }
+
       if (clickMarker) map.removeLayer(clickMarker);
       clickMarker = L.marker([lat, lng]).addTo(map);
+
       document.getElementById('modalForm').style.display = 'flex';
       toggleRazonNoRegistro();
     }
@@ -752,6 +832,7 @@
       document.getElementById('seccion_electoral').value = '';
       document.getElementById('ocr_resultado').value = '';
       document.getElementById('observaciones').value = '';
+      document.getElementById('direccion').value = '';
     }
 
     function abrirModalTabla() {
