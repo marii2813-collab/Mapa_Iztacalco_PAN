@@ -32,25 +32,25 @@
     /* Contenedor del Buscador Estilo Google Maps con Lista Desplegable */
     .search-box-wrapper {
       position: absolute; top: 15px; left: 60px; z-index: 1000;
-      max-width: 420px; width: calc(100% - 80px);
+      max-width: 440px; width: calc(100% - 80px);
     }
     .search-box-container {
       background: white; padding: 6px 8px; border-radius: 8px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.25); display: flex; gap: 6px; align-items: center;
     }
     .search-box-container input {
-      flex: 1; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; outline: none;
+      flex: 1; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; outline: none;
     }
     .search-box-container input:focus { border-color: #007bff; }
     .search-box-container button {
       background: #007bff; color: white; border: none; padding: 10px 14px;
-      border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; white-space: nowrap;
+      border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; white-space: nowrap;
     }
 
     /* Lista desplegable de sugerencias */
     .suggestions-list {
       background: white; margin-top: 4px; border-radius: 8px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-height: 250px; overflow-y: auto;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-height: 260px; overflow-y: auto;
       display: none; list-style: none; padding: 0; border: 1px solid #ddd;
     }
     .suggestions-list li {
@@ -180,10 +180,10 @@
     </div>
   </div>
 
-  <!-- Buscador de Ubicación / Dirección con Desplegable -->
+  <!-- Buscador Avanzado por Calle, Número, Colonia o Coordenadas -->
   <div class="search-box-wrapper">
     <div class="search-box-container">
-      <input type="text" id="inputBusquedaDireccion" placeholder="Buscar dirección (ej: Sur 115 A 2181)..." autocomplete="off" oninput="buscarSugerenciasEnTiempoReal()" onkeypress="if(event.key === 'Enter') buscarUbicacionesYMostrarOpciones()">
+      <input type="text" id="inputBusquedaDireccion" placeholder="Buscar dirección (calle, número, colonia) o coords (lat, lng)..." autocomplete="off" oninput="buscarSugerenciasEnTiempoReal()" onkeypress="if(event.key === 'Enter') buscarUbicacionesYMostrarOpciones()">
       <button onclick="buscarUbicacionesYMostrarOpciones()">🔍 Buscar</button>
     </div>
     <ul id="listaSugerencias" class="suggestions-list"></ul>
@@ -506,14 +506,33 @@
     cargarGeoJSON('Distrito Local 15.-Secciones electorales.geojson', capaD15_Secciones, 'secciones');
 
     // =========================================================================
-    // BUSCADOR AVANZADO CON SUGERENCIAS / OPCIONES ESTILO GOOGLE MAPS
+    // BUSCADOR AVANZADO: POR DIRECCIÓN (CALLE, NÚMERO, COLONIA) O COORDENADAS
     // =========================================================================
     let debounceTimer = null;
+
+    // Detectar si la entrada del usuario son coordenadas geográficas
+    function esFormatoCoordenadas(texto) {
+      const regexCoords = /^\s*(-?\d+(\.\d+)?)\s*[,;\s]\s*(-?\d+(\.\d+)?)\s*$/;
+      return regexCoords.test(texto);
+    }
+
+    function extraerCoordenadas(texto) {
+      const match = texto.match(/(-?\d+(\.\d+)?)\s*[,;\s]\s*(-?\d+(\.\d+)?)/);
+      if (match) {
+        return { lat: parseFloat(match[1]), lon: parseFloat(match[3]) };
+      }
+      return null;
+    }
 
     function buscarSugerenciasEnTiempoReal() {
       clearTimeout(debounceTimer);
       const query = document.getElementById('inputBusquedaDireccion').value.trim();
       const listContainer = document.getElementById('listaSugerencias');
+
+      if (esFormatoCoordenadas(query)) {
+        listContainer.style.display = 'none';
+        return;
+      }
 
       if (query.length < 3) {
         listContainer.style.display = 'none';
@@ -531,31 +550,45 @@
     function buscarUbicacionesYMostrarOpciones() {
       const query = document.getElementById('inputBusquedaDireccion').value.trim();
       if (!query) {
-        alert("Por favor ingresa una dirección a buscar.");
+        alert("Ingresa una dirección o coordenadas.");
         return;
       }
+
+      // 1. Si son Coordenadas
+      if (esFormatoCoordenadas(query)) {
+        const coords = extraerCoordenadas(query);
+        if (coords) {
+          seleccionarUbicacion(coords.lat, coords.lon, `Coordenadas: ${coords.lat.toFixed(5)}, ${coords.lon.toFixed(5)}`);
+          return;
+        }
+      }
+
+      // 2. Si es Dirección por texto
       obtenerUbicacionesNominatim(query, (resultados) => {
         if (resultados.length > 0) {
           mostrarListaSugerencias(resultados);
-          // Si solo hay 1 resultado, seleccionarlo automáticamente
           if (resultados.length === 1) {
             seleccionarUbicacion(resultados[0].lat, resultados[0].lon, resultados[0].display_name);
           }
         } else {
-          alert("No se encontraron resultados para esta dirección en Iztacalco. Intenta con un número o colonia diferente.");
+          alert("No se encontraron resultados para esta dirección. Verifica el número de calle o colonia.");
         }
       });
     }
 
     function obtenerUbicacionesNominatim(query, callback) {
-      // Priorizar Iztacalco y CDMX
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(query + ", Iztacalco, Ciudad de México")}`;
+      // Priorizar en Iztacalco y CDMX con parámetros específicos
+      let queryLimpia = query;
+      if (!query.toLowerCase().includes("iztacalco")) queryLimpia += ", Iztacalco";
+      if (!query.toLowerCase().includes("méxico") && !query.toLowerCase().includes("cdmx")) queryLimpia += ", Ciudad de México";
+
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=8&addressdetails=1&countrycodes=mx&q=${encodeURIComponent(queryLimpia)}`;
 
       fetch(url)
         .then(res => res.json())
         .then(data => callback(data || []))
         .catch(err => {
-          console.error("Error al obtener ubicaciones:", err);
+          console.error("Error al buscar dirección:", err);
           callback([]);
         });
     }
@@ -583,7 +616,7 @@
 
     function seleccionarUbicacion(lat, lon, displayName) {
       document.getElementById('listaSugerencias').style.display = 'none';
-      document.getElementById('inputBusquedaDireccion').value = displayName.split(',')[0]; // Colocar nombre corto
+      document.getElementById('inputBusquedaDireccion').value = displayName.split(',')[0];
 
       const latNum = parseFloat(lat);
       const lonNum = parseFloat(lon);
@@ -634,7 +667,7 @@
       }
 
       let mensajePopup = `
-        <b>📍 Ubicación Seleccionada:</b><br><span style="font-size:11px; color:#555;">${displayName}</span><hr style="margin:6px 0;">
+        <b>📍 Ubicación Encontrada:</b><br><span style="font-size:11px; color:#555;">${displayName}</span><hr style="margin:6px 0;">
         <b>🗳 Sección Electoral:</b> <span style="color:#117a65; font-size:14px; font-weight:bold;">${seccionEncontrada ? seccionEncontrada : 'No detectada'}</span><br>
         <b>🏛 Distrito:</b> ${distritoEncontrado ? distritoEncontrado : 'N/D'}<br>
         <b>🔲 Ruta:</b> ${rutaEncontrada ? rutaEncontrada : 'N/D'}<br><br>
@@ -647,7 +680,6 @@
       clickMarker = L.marker([latNum, lonNum]).addTo(map).bindPopup(mensajePopup).openPopup();
     }
 
-    // Ocultar la lista si hace clic fuera del buscador
     document.addEventListener('click', function(e) {
       if (!e.target.closest('.search-box-wrapper')) {
         document.getElementById('listaSugerencias').style.display = 'none';
